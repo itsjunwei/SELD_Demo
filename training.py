@@ -90,46 +90,128 @@ def train_epoch(data_generator, optimizer, model, criterion, device, nb_batches=
     torch.cuda.empty_cache()
     return train_loss
 
+import argparse
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Training Script with Argparse Integration")
+
+    # Experiment Identification
+    parser.add_argument(
+        "--unique_name",
+        type=str,
+        default="demo",
+        help="Unique name for the experiment/run."
+    )
+
+    # Model Configurations
+    parser.add_argument(
+        "--use_dsc",
+        action="store_true",
+        help="Use Depthwise Separable Convolutions"
+    )
+
+    parser.add_argument(
+        "--use_btndsc",
+        action="store_true",
+        help="Use Bottleneck ResBlks. Depthwise Separable Convolutions enabled by default."
+    )
+
+    # Directories
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        default="./logs",
+        help="Directory to save log files."
+    )
+    parser.add_argument(
+        "--model_dir",
+        type=str,
+        default="./model_weights",
+        help="Directory to save model weights."
+    )
+
+    # Training Hyperparameters
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=50,
+        help="Number of training epochs."
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size for training."
+    )
+    parser.add_argument(
+        "--test_batch_size",
+        type=int,
+        default=32,
+        help="Batch size for testing."
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-3,
+        help="Learning rate for the optimizer."
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-4,
+        help="Weight decay (L2 regularization) factor."
+    )
+    parser.add_argument(
+        "--n_workers",
+        type=int,
+        default=0,
+        help="Number of worker threads for data loading."
+    )
+
+    # Data Augmentation
+    parser.add_argument(
+        "--use_augmentations",
+        action="store_true",
+        help="Enable data augmentations during training."
+    )
+
+    return parser.parse_args()
 
 
-def main(argv):
-    if len(argv) == 1:
-        unique_name = "demo"
-    else:
-        unique_name = argv[-1]
-    # Make the log file directory
-    os.makedirs("./logs", exist_ok=True)
+def main():
+    
+    args = parse_arguments()
+    unique_name = args.unique_name
 
-    use_cuda = torch.cuda.is_available()
+    # Make the log and model directories
+    os.makedirs(args.log_dir, exist_ok=True)
+    os.makedirs(args.model_dir, exist_ok=True)
+
+    # Device configuration
+    use_cuda = torch.cuda.is_available() and not args.no_cuda
     device = torch.device("cuda" if use_cuda else "cpu")
 
     torch.autograd.set_detect_anomaly(True)
-    
-    run_starttime = datetime.now().strftime("%d%m%y_%H%M")
 
+    run_starttime = datetime.now().strftime("%d%m%y_%H%M")
 
     # Create the logging file
     log_file = os.path.join("./logs", "{}_{}_logs.txt".format(run_starttime, unique_name))
     logger = open(log_file, "w")
 
     # Starting up the wandb logger
-    project_title = "{}".format(run_starttime)
+    project_title = f"{run_starttime}_{args.unique_name}"
     write_and_print(logger, project_title)
 
 
-    # Training setup 
-    print("Running on Windows server, reducing num_workers to 0")
-    n_workers = 0
-    
-    # Setting up number of training epochs
-    nb_epoch = 50
-    batch_size = 32
+    # Training setup
+    nb_epoch = args.epochs
+    batch_size = args.batch_size
+    n_workers = args.n_workers
 
 
     # Unique name for the run
-    model_dir = "./model_weights"
-    os.makedirs(model_dir, exist_ok=True)
-    model_name = os.path.join(model_dir,'{}_{}_model.h5'.format(run_starttime, unique_name))
+    model_name = os.path.join(args.model_dir,'{}_{}_model.h5'.format(run_starttime, unique_name))
     write_and_print(logger, out_string="Unique Name: {}_{}".format(run_starttime, unique_name))
     write_and_print(logger, out_string="Training started : {}".format(datetime.now().strftime("%d%m%y_%H%M%S")))
     
@@ -138,17 +220,21 @@ def main(argv):
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
     
-    training_transforms = transforms.Compose([
-                RandomSpecAugHole(num_holes=5, hole_height=10, hole_width=10, p=0.8)
-            ])
-    
-    train_dataset = seldDataset(db_data=train_data)
+    use_augmentations = args.use_augmentations
+    if use_augmentations:
+        training_transforms = transforms.Compose([
+                    RandomSpecAugHole(num_holes=5, hole_height=10, hole_width=10, p=0.8)
+                ])
+    else:
+        training_transforms = None
+
+    train_dataset = seldDataset(db_data=train_data, transform=training_transforms)
     test_dataset = seldDataset(db_data=test_data)
     
     sample_x, sample_y = train_dataset[0]
     data_in = sample_x.shape
     data_out = sample_y.shape
-    print("In shape : {}, Out shape : {}".format(data_in, data_out))
+    print("In shape: {}, Out shape: {}".format(data_in, data_out))
 
 
     # Creating the dataloaders
@@ -170,7 +256,7 @@ def main(argv):
 
     model = ResNet(in_feat_shape=data_in,
                    out_feat_shape=data_out,
-                   use_dsc=True).to(device)
+                   use_dsc=args.use_dsc, btn_dsc=args.use_btndsc).to(device)
     print("Using ResNet-GRU!")
 
     write_and_print(logger, 'FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out)) # Get input and output shape sizes
@@ -191,7 +277,7 @@ def main(argv):
         }
     ]
 
-    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=1e-3)
+    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
     print("Using Adam with Weight Decay optimizer")
 
     # Now we set the learning rate scheduler
@@ -209,6 +295,7 @@ def main(argv):
 
     # Misc. print statements for viewing the training configurations
     write_and_print(logger, "Device used : {}".format(device))
+    write_and_print(logger, "Augmentations used : {}".format(use_augmentations))
 
 
     try:
