@@ -196,16 +196,11 @@ class BtnDSCLayer(nn.Module):
                                 out_channels=self.down_channels,
                                 kernel_size=(1,1), stride=(1,1), bias=False)
         
-        self.conv1 = DepthwiseSeparableConv(in_channels=self.down_channels,
+        self.dsc = DepthwiseSeparableConv(in_channels=self.down_channels,
                                             out_channels=self.down_channels,
                                             kernel_size=(3,3), stride=(1,1), 
                                             padding=(1,1), bias=False)
-        
-        self.conv2 = DepthwiseSeparableConv(in_channels=self.down_channels,
-                                            out_channels=self.down_channels,
-                                            kernel_size=(3,3), stride=(1,1), 
-                                            padding=(1,1), bias=False)
-        
+
         self.btn_out = nn.Conv2d(in_channels=self.down_channels,
                                  out_channels=out_channels,
                                  kernel_size=(1,1), stride=(1,1), bias=False)
@@ -244,9 +239,10 @@ class BtnDSCLayer(nn.Module):
     def forward(self, x):
 
         identity = x.clone()
-        
-        out = F.relu_(self.bn1(self.conv1(self.btn_in(x))))
-        out = self.bn2(self.btn_out(self.conv2(out)))
+
+        out = F.relu_(self.bn1(self.btn_in(x)))
+        out = self.bn2(self.btn_out(self.dsc(out)))
+
         if self.shortcut is not None: 
             out += self.shortcut(identity)
         else:

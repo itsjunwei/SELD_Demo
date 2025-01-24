@@ -191,7 +191,7 @@ def main(argv):
         }
     ]
 
-    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=1e-4)
+    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=1e-3)
     print("Using Adam with Weight Decay optimizer")
 
     # Now we set the learning rate scheduler
