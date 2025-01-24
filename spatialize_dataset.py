@@ -273,200 +273,269 @@ def create_spatialized_mix_from_class_audio(
     time_resolution: float = 0.1,
     possible_angles: list[int] = [0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
     min_event_length: float = 0.5,
-    max_event_length: float = 3.0
+    max_event_length: float = 3.0,
+    use_500ms_blocks: bool = False,
+    block_duration: float = 0.5,
 ):
     """
     Create a 4-channel synthetic mixture from:
-      1. A 4-channel ambience (1-minute segment),
-      2. Several monophonic event snippets. Each snippet is extracted from one of
-         the big class-concatenated audio files. The class -> numeric label is:
-            0 -> Alarm
-            1 -> Impact
-            2 -> Speech
-      3. Each snippet is convolved with a random 4-channel SRIR from a chosen angle,
-      4. Placed on a 100 ms grid (time_resolution=0.1) with max polyphony=2,
-      5. Scaled to random SNR,
-      6. Output: final 4-channel .wav + CSV with frame-level labels:
-         (frame_index, numeric_label, angle).
+      1. A 4-channel ambience (segment_length e.g. 60s),
+      2. Several monophonic event snippets. The class->label mapping is:
+            0 -> Alarm, 1 -> Impact, 2 -> Speech, etc.
+      3. Convolution with a random 4-channel SRIR from chosen angle,
+      4. If use_500ms_blocks=False (default):
+           - Place events on a 100 ms grid, random snippet lengths in [min_event_length, max_event_length].
+           - Up to max_polyphony=2 can overlap. Standard approach.
+         If use_500ms_blocks=True:
+           - Place each event in multiples of block_duration=0.5s.  The event can span N consecutive blocks
+             (N chosen by rounding up from [min_event_length, max_event_length]).
+           - Up to 2 events can occupy the same 500ms block at once.
+      5. Scale to random SNR,
+      6. Output final 4-channel .wav,
+      7. Output CSV ground truth with 100ms frames (time_resolution=0.1).
 
     Parameters
     ----------
     ambience_path_4ch : str
-        Path to 4-channel ambience file.
-    class_audio_paths_mono : dict of {int: str}
-        e.g. {0: "alarm_concat.wav", 1: "impact_concat.wav", 2: "speech_concat.wav"}
+        Path to the 4-channel ambience file (wav).
+    class_audio_paths_mono : dict[int, str]
+        e.g. {0:"alarm_concat.wav", 1:"impact_concat.wav", 2:"speech_concat.wav"}
     srir_folder_4ch : str
-        Folder with 4-channel SRIR files for discrete angles.
+        Folder containing 4-channel SRIRs named such that angles can be matched.
     out_audio_path_4ch : str
-        Output path for final 4-channel mixture.
+        Where to write the final 4-ch mixture wav.
     out_csv_path : str
-        Output path for CSV ground truth.
+        Where to write the CSV ground truth.
     sr : int
-        Sample rate.
+        Sample rate (assumed consistent).
     segment_length : float
-        How many seconds of ambience to extract (default=60).
+        E.g. 60 for 1 minute.
     num_events : int
-        Total number of events to overlay.
-    snr_range_db : tuple of float
-        Range of SNR in dB (min, max).
+        How many total events to overlay if use_500ms_blocks=False.
+        (When use_500ms_blocks=True, we still "attempt" to place these many events.)
+    snr_range_db : tuple[float, float]
+        Range for random SNR selection in dB.
     max_polyphony : int
-        Maximum overlap of events.
+        Up to 2 overlapping events.
     time_resolution : float
-        Step size in seconds (default=0.1 => 100 ms).
+        0.1 => final labeling frames are each 100ms.
     possible_angles : list[int]
-        Discrete angles for which we have SRIRs.
-    min_event_length : float
-        Min random length (in seconds) for an event snippet.
-    max_event_length : float
-        Max random length (in seconds) for an event snippet.
+        Angles for which SRIRs exist.
+    min_event_length, max_event_length : float
+        (seconds) The random event durations used in either snippet or block approach.
+    use_500ms_blocks : bool
+        Toggle for new block-based approach. If True, each event spans N multiples of block_duration.
+    block_duration : float
+        Size of each block in seconds (e.g. 0.5). Only used when use_500ms_blocks=True.
+
+    Returns
+    -------
+    None (writes mixture wav + CSV to disk).
     """
 
-    # -------------------------------------------------------------------------
-    # 1) Load 4-ch Ambience and extract random 60 s
-    # -------------------------------------------------------------------------
+    # --------------------------
+    # 1) Load the 4-ch ambience
+    # --------------------------
     ambience_4ch, sr_amb = sf.read(ambience_path_4ch)
     if ambience_4ch.ndim != 2 or ambience_4ch.shape[1] != 4:
-        raise ValueError("Ambience must be 4-channel: shape (samples,4).")
-    if sr_amb != sr:
-        # Resample if needed
-        pass
+        raise ValueError("Ambience must be 4-channel (samples,4).")
 
-    ambience_segment_4ch = extract_random_segment_4ch(
-        ambience_4ch, sr, segment_length
-    )
-
-    # -------------------------------------------------------------------------
-    # 2) Load the large audio for each class (mono)
-    # -------------------------------------------------------------------------
-    class_audio_data = {}
-    for class_label, path in class_audio_paths_mono.items():
-        audio_mono, sr_class = sf.read(path)
-        if audio_mono.ndim != 1:
-            raise ValueError(f"Class file {path} must be mono.")
-        if sr_class != sr:
-            # Resample if needed
-            pass
-        class_audio_data[class_label] = audio_mono
-
-    # We'll pick random event snippets from these class audios
-    event_snippets = []
-    event_classes = []
-    event_durations = []
-
-    # -------------------------------------------------------------------------
-    # 3) Randomly pick events from the 3 classes
-    # -------------------------------------------------------------------------
-    class_labels = list(class_audio_paths_mono.keys())  # e.g. [0,1,2]
-    for _ in range(num_events):
-        # pick random class
-        chosen_class = random.choice(class_labels)
-
-        # pick random snippet length
-        length_sec = random.uniform(min_event_length, max_event_length)
-        # extract from that class's big file
-        snippet = extract_random_segment(class_audio_data[chosen_class], sr, length_sec)
-
-        event_snippets.append(snippet)
-        event_classes.append(chosen_class)
-        event_durations.append(len(snippet) / sr)
-
-    # -------------------------------------------------------------------------
-    # 4) Place events on timeline with max_polyphony=2, 100ms resolution
-    # -------------------------------------------------------------------------
-    start_times = place_events_class_based(
-        event_durations=event_durations,
-        event_classes=event_classes,
-        total_duration=segment_length,
-        time_resolution=time_resolution
-    )
-
-    # -------------------------------------------------------------------------
-    # 5) Compute 4-ch Ambience RMS
-    # -------------------------------------------------------------------------
-    ambience_rms = measure_rms_multichannel(ambience_segment_4ch)
+    ambience_segment_4ch = extract_random_segment_4ch(ambience_4ch, sr, segment_length)
     final_mix_4ch = np.copy(ambience_segment_4ch)
 
-    # For CSV labeling: list of (frame_idx, class_label, angle)
-    frame_label_records = []
+    # For labeling
     total_frames = int(np.floor(segment_length / time_resolution))
 
-    # -------------------------------------------------------------------------
-    # 6) For each event, pick angle, SRIR, convolve, SNR, mix
-    # -------------------------------------------------------------------------
-    for i, (snippet_mono, dur_sec) in enumerate(zip(event_snippets, event_durations)):
-        start_sec = start_times[i]
-        if start_sec is None:
-            # event wasn't placed
-            continue
+    # --------------------------
+    # 2) Pre-load each class's audio
+    # --------------------------
+    class_audio_data = {}
+    for cls, mono_path in class_audio_paths_mono.items():
+        audio_mono, sr_cls = sf.read(mono_path)
+        if audio_mono.ndim != 1:
+            raise ValueError(f"Class file {mono_path} must be mono.")
+        class_audio_data[cls] = audio_mono
 
-        class_label = event_classes[i]
-
-        # 6a) pick a random angle
-        angle_chosen = random.choice(possible_angles)
-
-        # 6b) find SRIR file
-        srir_candidates = [
-            f for f in os.listdir(srir_folder_4ch)
-            if f.endswith(".wav") and str(angle_chosen) in f  # naive pattern match
-        ]
-        if not srir_candidates:
-            print(f"No SRIR found for angle={angle_chosen}, skipping event.")
-            continue
-        srir_file = random.choice(srir_candidates)
-        srir_path = os.path.join(srir_folder_4ch, srir_file)
-
-        srir_4ch, sr_srir = sf.read(srir_path)
-        if srir_4ch.ndim != 2 or srir_4ch.shape[1] != 4:
-            print(f"SRIR {srir_file} is not 4-ch. Skipping.")
-            continue
-        if sr_srir != sr:
-            # Resample if needed
-            pass
-
-        # 6c) Convolve
-        event_4ch = convolve_mono_with_4ch_rir(snippet_mono, srir_4ch)
-
-        # 6d) SNR scaling
-        event_rms = measure_rms_multichannel(event_4ch)
-        if event_rms == 0:
-            continue
-
-        snr_db = random.uniform(*snr_range_db)
-        desired_event_rms = ambience_rms * (10.0 ** (snr_db / 20.0))
-        scale_factor = desired_event_rms / event_rms
-
-        event_4ch_scaled = event_4ch * scale_factor
-
-        # 6e) Mix
-        mix_event_into_background_4ch(final_mix_4ch, event_4ch_scaled, sr, start_sec)
-
-        # 6f) Ground-truth labeling, 100ms frames
-        event_duration_out = event_4ch_scaled.shape[0] / sr
-        end_sec = start_sec + event_duration_out
-
-        frame_start = int(np.floor(start_sec / time_resolution))
-        frame_end = int(np.ceil(end_sec / time_resolution))
-        frame_start = max(0, frame_start)
-        frame_end = min(total_frames, frame_end)
-
-        # record: (frame_idx, numeric_label, angle_chosen)
-        for f_idx in range(frame_start, frame_end):
-            frame_label_records.append((f_idx, class_label, angle_chosen))
+    # We'll store labeling as a list of (frame_idx, class_label, angle)
+    frame_label_records = []
 
     # -------------------------------------------------------------------------
-    # 7) Write final 4-channel mixture
+    # MODE A) use_500ms_blocks = False: Original snippet-based approach
     # -------------------------------------------------------------------------
+    if not use_500ms_blocks:
+        # i) Pick random snippet durations in [min_event_length, max_event_length]
+        event_snippets = []
+        event_classes = []
+        event_durations = []
+        class_labels = list(class_audio_paths_mono.keys())
+
+        for _ in range(num_events):
+            chosen_class = random.choice(class_labels)
+            length_sec = random.uniform(min_event_length, max_event_length)
+            snippet = extract_random_segment(class_audio_data[chosen_class], sr, length_sec)
+            event_snippets.append(snippet)
+            event_classes.append(chosen_class)
+            event_durations.append(len(snippet)/sr)
+
+        # ii) Place events with place_events_class_based
+        start_times = place_events_class_based(
+            event_durations=event_durations,
+            event_classes=event_classes,
+            total_duration=segment_length,
+            time_resolution=time_resolution
+        )
+
+        # measure ambience RMS
+        ambience_rms = measure_rms_multichannel(final_mix_4ch)
+
+        # iii) For each event, convolve & mix
+        for i, (snippet_mono, dur_sec) in enumerate(zip(event_snippets, event_durations)):
+            start_sec = start_times[i]
+            if start_sec is None:
+                continue
+            class_label = event_classes[i]
+            angle_chosen = random.choice(possible_angles)
+
+            # Find SRIR
+            srir_candidates = [
+                f for f in os.listdir(srir_folder_4ch)
+                if f.endswith(".wav") and str(angle_chosen) in f
+            ]
+            if not srir_candidates:
+                print(f"No SRIR found for angle={angle_chosen}, skipping.")
+                continue
+
+            srir_file = random.choice(srir_candidates)
+            srir_path = os.path.join(srir_folder_4ch, srir_file)
+            srir_4ch, sr_srir = sf.read(srir_path)
+            if srir_4ch.ndim != 2 or srir_4ch.shape[1] != 4:
+                print(f"SRIR {srir_file} is not 4-ch. Skipping.")
+                continue
+
+            # Convolve
+            event_4ch = convolve_mono_with_4ch_rir(snippet_mono, srir_4ch)
+            event_rms = measure_rms_multichannel(event_4ch)
+            if event_rms == 0:
+                continue
+
+            snr_db = random.uniform(*snr_range_db)
+            desired_event_rms = ambience_rms * (10.0 ** (snr_db / 20.0))
+            scale_factor = desired_event_rms / event_rms
+            event_4ch_scaled = event_4ch * scale_factor
+
+            mix_event_into_background_4ch(final_mix_4ch, event_4ch_scaled, sr, start_sec)
+
+            # Label frames at 100ms
+            end_sec = start_sec + (len(event_4ch_scaled)/sr)
+            frame_start = int(np.floor(start_sec / time_resolution))
+            frame_end = int(np.ceil(end_sec / time_resolution))
+            frame_start = max(frame_start, 0)
+            frame_end = min(frame_end, total_frames)
+            for f_idx in range(frame_start, frame_end):
+                frame_label_records.append((f_idx, class_label, angle_chosen))
+
+    # -------------------------------------------------------------------------
+    # MODE B) use_500ms_blocks = True: Block-based approach with N-block events
+    # -------------------------------------------------------------------------
+    else:
+        block_count = int(segment_length // 0.5)  # e.g. 120 blocks if 60s
+        frames_per_block = int(0.5 / time_resolution)  # e.g. 5 frames for each 0.5s block
+        block_class_sets = [set() for _ in range(block_count)]  # track which classes occupy each block
+        ambience_rms = measure_rms_multichannel(final_mix_4ch)
+        class_labels = list(class_audio_paths_mono.keys())
+
+        # We'll store (start_block, n_blocks, class_label) for each event
+        scheduled_events = []
+
+        for _ in range(num_events):
+            chosen_class = random.choice(class_labels)
+            rand_len = random.uniform(min_event_length, max_event_length)
+            n_blocks = int(np.ceil(rand_len / 0.5))
+            if n_blocks <= 0 or n_blocks > block_count:
+                continue
+
+            # attempt random block placement
+            placed = False
+            max_attempts = 2000
+            attempt_cnt = 0
+            while not placed and attempt_cnt < max_attempts:
+                attempt_cnt += 1
+                start_b = random.randint(0, block_count - n_blocks)
+                # check each block in [start_b, start_b+n_blocks)
+                can_place = True
+                for b_i in range(start_b, start_b + n_blocks):
+                    if len(block_class_sets[b_i]) >= max_polyphony:
+                        can_place = False
+                        break
+                    # if you also want to forbid 2 events of same class:
+                    if chosen_class in block_class_sets[b_i]:
+                        can_place = False
+                        break
+
+                if can_place:
+                    # place
+                    for b_i in range(start_b, start_b + n_blocks):
+                        block_class_sets[b_i].add(chosen_class)
+                    scheduled_events.append((start_b, n_blocks, chosen_class))
+                    placed = True
+
+        # Now we convolve/mix those scheduled events
+        for (start_b, nb, cls_label) in scheduled_events:
+            angle_chosen = random.choice(possible_angles)
+            srir_candidates = [
+                f for f in os.listdir(srir_folder_4ch)
+                if f.endswith(".wav") and str(angle_chosen) in f
+            ]
+            if not srir_candidates:
+                print(f"No SRIR for angle {angle_chosen}, skip.")
+                continue
+            srir_file = random.choice(srir_candidates)
+            srir_path = os.path.join(srir_folder_4ch, srir_file)
+            srir_4ch, sr_srir = sf.read(srir_path)
+            if srir_4ch.ndim != 2 or srir_4ch.shape[1] != 4:
+                print(f"SRIR {srir_file} invalid shape. Skipping.")
+                continue
+
+            event_len_s = nb * 0.5
+            snippet_mono = extract_random_segment(class_audio_data[cls_label], sr, event_len_s)
+            if len(snippet_mono) == 0:
+                continue
+
+            # Convolution
+            event_4ch = convolve_mono_with_4ch_rir(snippet_mono, srir_4ch)
+            event_rms = measure_rms_multichannel(event_4ch)
+            if event_rms == 0:
+                continue
+
+            # SNR scaling
+            snr_db = random.uniform(*snr_range_db)
+            desired_event_rms = ambience_rms * (10.0 ** (snr_db / 20.0))
+            scale_factor = desired_event_rms / event_rms
+            event_4ch_scaled = event_4ch * scale_factor
+
+            # Mixing
+            start_time_s = start_b * 0.5
+            mix_event_into_background_4ch(final_mix_4ch, event_4ch_scaled, sr, start_time_s)
+
+            # labeling
+            block_frame_start = start_b * frames_per_block
+            block_frame_end = block_frame_start + (nb * frames_per_block)
+            block_frame_end = min(block_frame_end, total_frames)
+            for f_idx in range(block_frame_start, block_frame_end):
+                frame_label_records.append((f_idx, cls_label, angle_chosen))
+
+    # ------------------------------
+    # 7) Write final mixture
+    # ------------------------------
     sf.write(out_audio_path_4ch, final_mix_4ch, sr)
     print(f"Created 4-channel mixture: {out_audio_path_4ch}")
 
-    # -------------------------------------------------------------------------
-    # 8) Write CSV ground truth
-    # -------------------------------------------------------------------------
-    # Format: frame_index, class_label, angle
+    # ------------------------------
+    # 8) Write CSV
+    # ------------------------------
     frame_label_records.sort(key=lambda x: x[0])
     with open(out_csv_path, mode='w', newline='') as f:
         writer = csv.writer(f)
-        # writer.writerow(["frame_index", "class_label", "angle"])
         for (frame_idx, label, angle) in frame_label_records:
             writer.writerow([frame_idx, label, angle])
 
@@ -524,5 +593,6 @@ if __name__ == "__main__":
                     time_resolution=0.1,  # 100 ms frames
                     possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
                     min_event_length=2.0,
-                    max_event_length=5.0
+                    max_event_length=5.0,
+                    use_500ms_blocks=True
                 )
