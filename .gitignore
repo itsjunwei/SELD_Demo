@@ -1,0 +1,8 @@
+*.ipynb
+*.wav
+*.npy
+*.csv
+*__pycache__*
+*.txt
+*.h5
+*.mat
