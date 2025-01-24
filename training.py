@@ -144,12 +144,6 @@ def parse_arguments():
         help="Batch size for training."
     )
     parser.add_argument(
-        "--test_batch_size",
-        type=int,
-        default=32,
-        help="Batch size for testing."
-    )
-    parser.add_argument(
         "--learning_rate",
         type=float,
         default=1e-3,
@@ -351,7 +345,7 @@ if __name__ == "__main__":
 
     try:
         # Execute the main function
-        sys.exit(main(sys.argv))
+        sys.exit(main())
     except (ValueError, IOError) as e:
         # Handle exceptions and exit with the error
         sys.exit(e)
