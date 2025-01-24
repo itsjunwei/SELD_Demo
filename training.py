@@ -182,7 +182,7 @@ def main():
     os.makedirs(args.model_dir, exist_ok=True)
 
     # Device configuration
-    use_cuda = torch.cuda.is_available() and not args.no_cuda
+    use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
 
     torch.autograd.set_detect_anomaly(True)
