@@ -94,7 +94,7 @@ def load_output_format_file(file):
         _frame_ind = int(_words[0])
         if _frame_ind not in _output_dict:
             _output_dict[_frame_ind] = []
-            _output_dict[_frame_ind].append([int(_words[1]), float(_words[2])]) # Class Index, Azimuth Angle
+        _output_dict[_frame_ind].append([int(_words[1]), float(_words[2])]) # Class Index, Azimuth Angle
     _fid.close()
     
     return _output_dict

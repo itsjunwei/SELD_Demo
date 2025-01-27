@@ -8,7 +8,7 @@ from models import ResNet
 from utilities import *
 
 
-def inference(data_generator,  model, device, nb_batches=1000, sed_threshold=0.6):
+def inference(data_generator,  model, device, nb_batches=1000, sed_threshold=0.5):
     model.eval()
     
     # Create an instance of the aggregator
@@ -36,8 +36,6 @@ def inference(data_generator,  model, device, nb_batches=1000, sed_threshold=0.6
                 # Update aggregator with this batch’s ground truth + predictions
                 target = convert_output(target, sed_threshold=sed_threshold)
                 output = convert_output(output, sed_threshold=sed_threshold)
-                
-                print(target[:5], output[:5])
 
                 seld_metric.update(gt=target, pred=output)
 
