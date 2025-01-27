@@ -37,8 +37,8 @@ class seldDatabase:
         self.train_chunk_len = self.second2frame(train_chunk_len_s)
         self.train_chunk_hop_len = self.second2frame(train_chunk_hop_len_s)
 
-        self.gt_chunk_len = int(train_chunk_len_s * 10) # label_rate * n_sec
-        self.gt_chunk_hop_len = int(train_chunk_hop_len_s * 10)
+        self.gt_chunk_len = int(train_chunk_len_s * self.label_rate) # label_rate * n_sec
+        self.gt_chunk_hop_len = int(train_chunk_hop_len_s * self.label_rate)
 
         self.chunk_len = None
         self.chunk_hop_len = None

@@ -171,6 +171,12 @@ def parse_arguments():
         default="batch",
         help="Type of learning rate scheduler used (batch/step)."
     )
+    parser.add_argument(
+        "--feat_label_dir",
+        type=str,
+        default="./feat_label",
+        help="Directory where all the features and labels are stored."
+    )
 
     # Data Augmentation
     parser.add_argument(
@@ -219,7 +225,7 @@ def main():
     write_and_print(logger, out_string="Unique Name: {}_{}".format(run_starttime, unique_name))
     write_and_print(logger, out_string="Training started : {}".format(datetime.now().strftime("%d%m%y_%H%M%S")))
     
-    dataset = seldDatabase()
+    dataset = seldDatabase(feat_label_dir=args.feat_label_dir)
     train_data = dataset.get_split("train")
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
@@ -257,7 +263,6 @@ def main():
     print("Manual training dataloader created with {} batches using batch size of {}!".format(n_batches, batch_size))
 
     # Deciding on model architecture
-
     model = ResNet(in_feat_shape=data_in,
                    out_feat_shape=data_out,
                    use_dsc=args.use_dsc, btn_dsc=args.use_btndsc).to(device)
@@ -299,10 +304,10 @@ def main():
         print("Cosine Annealing w/ Warmup Step Scheduler is used!\nTotal Number of Steps : {}".format(total_steps))
     elif args.sched == "batch":
         batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
-        print("Decay Scheduler used!")
+        print("Batch Decay Scheduler used!")
     else:
         batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
-        print("Decay Scheduler used!")
+        print("Batch Decay Scheduler used!")
 
     optimizer.zero_grad()
     optimizer.step()

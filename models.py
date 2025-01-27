@@ -306,19 +306,17 @@ class ResNet(nn.Module):
         # determining the bigru size
         gru_in = self.res_layers[-1]
         self.bigru = nn.GRU(input_size = gru_in, hidden_size = gru_size,
-                            num_layers = 2, batch_first=True, bidirectional=True, dropout=0.05)
+                            num_layers = 2, batch_first=True, bidirectional=True, dropout=0.3)
 
         # decoding layers
         self.fc1 = nn.Linear(in_features=gru_size * 2,
                              out_features=gru_size, bias=True)
-        self.dropout1 = nn.Dropout(p=0.05)
+        self.dropout1 = nn.Dropout(p=0.2)
         self.leaky = nn.LeakyReLU(inplace=True)
         self.fc2 = nn.Linear(in_features=gru_size,
                              out_features=out_feat_shape[-1], bias=True)
-        self.dropout2 = nn.Dropout(p=0.05)
+        self.dropout2 = nn.Dropout(p=0.2)
 
-        # Final Activation function
-        self.final_out = nn.Tanh()
 
     def forward(self, x):
 
@@ -352,12 +350,11 @@ class ResNet(nn.Module):
         x = torch.mean(x, dim=3)
         x = x.transpose(1,2).contiguous()
         x , _ = self.bigru(x)
-        x = torch.tanh(x)
+        # x = torch.tanh(x)
 
         # Fully connected decoding layers
         x = self.leaky(self.fc1(self.dropout1(x)))
-        x = self.fc2(self.dropout2(x))
-        x = self.final_out(x)
+        x = torch.tanh(self.fc2(self.dropout2(x)))
 
         return x
 

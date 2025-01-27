@@ -290,9 +290,9 @@ class SELDMetricsAzimuth:
                     self.total_DE += diff
                     self.DE_TP += 1  # we found a matched class
 
-                    if diff <= self.azimuth_threshold:
+                    if diff <= self.azimuth_threshold: # Within localization threshold
                         self.TP += 1
-                    else:
+                    else: # Beyond localization threshold
                         loc_FP_sample += 1
                         self.FP += 1
 

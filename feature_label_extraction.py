@@ -134,9 +134,10 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data"
-    feat_dir = "./feat_label"
+    output_dir = "./output_data_2fps"
+    feat_dir = "./feat_label_2fps"
     fs = 24000
+    label_rate = 2
 
     for root, dirnames, filenames in os.walk(output_dir, topdown=True):
         for filename in filenames:
@@ -148,7 +149,7 @@ if __name__ == "__main__":
 
                 # Determine the number of feature frames
                 nb_feat_frames = int(audio_data.shape[1] / 300.0)
-                nb_label_frames = int(audio_data.shape[1]/ fs * 10) # 10 fps
+                nb_label_frames = int(audio_data.shape[1]/ fs * label_rate) # 10 fps
 
                 # Extract the SALSA-Lite features
                 _feat = extract_salsalite(audio_data=audio_data)
