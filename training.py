@@ -12,7 +12,6 @@ from datetime import datetime
 from manual_dataset import *
 from rich.progress import Progress
 from models import ResNet
-from torchvision import transforms
 from utilities import *
 import argparse
 
@@ -20,7 +19,7 @@ import argparse
 def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
     nb_train_batches, validation_loss = 0, 0.
     model.eval()
-    
+
     # Create an instance of the aggregator
     seld_metric = SELDMetricsAzimuth(n_classes=3, azimuth_threshold=20, sed_threshold=0.5)
 
@@ -189,7 +188,7 @@ def parse_arguments():
 
 
 def main():
-    
+
     args = parse_arguments()
     unique_name = args.unique_name
 
@@ -224,12 +223,12 @@ def main():
     model_name = os.path.join(args.model_dir,'{}_{}_model.h5'.format(run_starttime, unique_name))
     write_and_print(logger, out_string="Unique Name: {}_{}".format(run_starttime, unique_name))
     write_and_print(logger, out_string="Training started : {}".format(datetime.now().strftime("%d%m%y_%H%M%S")))
-    
+
     dataset = seldDatabase(feat_label_dir=args.feat_label_dir)
     train_data = dataset.get_split("train")
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
-    
+
     use_augmentations = args.use_augmentations
     if use_augmentations:
         training_transforms = ComposeTransformNp([
@@ -240,7 +239,7 @@ def main():
 
     train_dataset = seldDataset(db_data=train_data, transform=training_transforms)
     test_dataset = seldDataset(db_data=test_data)
-    
+
     sample_x, sample_y = train_dataset[0]
     data_in = sample_x.shape
     data_out = sample_y.shape
@@ -252,7 +251,7 @@ def main():
                                      batch_size=batch_size, shuffle=True,
                                      num_workers=n_workers, drop_last=False,
                                      pin_memory=True, prefetch_factor=2)
-    
+
     test_dataloader = DataLoader(dataset=test_dataset,
                                  batch_size=test_batch_size, shuffle=False,
                                  num_workers=n_workers, drop_last=False,
@@ -295,7 +294,7 @@ def main():
     # Now we set the learning rate scheduler
     num_batches_per_epoch = len(training_dataloader)
     total_steps = nb_epoch * num_batches_per_epoch
-    
+
     step_scheduler = None
     batch_scheduler = None
 

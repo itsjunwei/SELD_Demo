@@ -19,7 +19,7 @@ class seldDatabase:
                  feat_label_dir : str = './feat_label', 
                  n_classes: int = 3, fs: int = 24000,
                  n_fft: int = 512, hop_len: int = 300, label_rate: float = 10, 
-                 train_chunk_len_s: float = 1.0, train_chunk_hop_len_s: float = 1.0,
+                 train_chunk_len_s: float = 1.0, train_chunk_hop_len_s: float = 0.5,
                  n_channels: int = 7, n_bins: int = 191):
 
         self.feat_label_dir = feat_label_dir

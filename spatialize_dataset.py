@@ -544,7 +544,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_2fps"
+    output_dir = "./output_data_block"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
@@ -590,9 +590,9 @@ if __name__ == "__main__":
                     num_events=12,
                     snr_range_db=(10, 30),
                     max_polyphony=2,
-                    time_resolution=0.5,  # 100 ms frames
+                    time_resolution=0.1,  # 100 ms frames
                     possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
                     min_event_length=2.0,
                     max_event_length=5.0,
-                    use_500ms_blocks=False
+                    use_500ms_blocks=True
                 )
