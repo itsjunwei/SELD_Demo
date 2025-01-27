@@ -6,6 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from thop import profile, clever_format
 
+def count_parameters(model):
+    """Returns the total number of parameters of the model"""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, 
@@ -456,6 +460,7 @@ if __name__ == "__main__":
     macs, params = clever_format([macs, params], "%.3f")
     print("{} MACS and {} Params".format(macs, params))
     print("Output shape : {}".format(y.shape))
+    print("Number of params : {:.3f}M".format(count_parameters(model)/(10**6)))
     
     # import torchinfo
     # model_profile = torchinfo.summary(model, input_size=input_feature_shape)

@@ -137,7 +137,7 @@ if __name__ == "__main__":
     output_dir = "./output_data_block"
     feat_dir = "./feat_label_block"
     fs = 24000
-    label_rate = 2
+    label_rate = 10
 
     for root, dirnames, filenames in os.walk(output_dir, topdown=True):
         for filename in filenames:
