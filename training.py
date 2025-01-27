@@ -11,7 +11,7 @@ import torch.optim as optim
 from datetime import datetime
 from manual_dataset import *
 from rich.progress import Progress
-from models import ResNet
+from models import ResNet, SELDNet
 from utilities import *
 import argparse
 
@@ -176,6 +176,12 @@ def parse_arguments():
         default="./feat_label",
         help="Directory where all the features and labels are stored."
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="resnet",
+        help="Model Choice"
+    )
 
     # Data Augmentation
     parser.add_argument(
@@ -262,10 +268,15 @@ def main():
     print("Manual training dataloader created with {} batches using batch size of {}!".format(n_batches, batch_size))
 
     # Deciding on model architecture
-    model = ResNet(in_feat_shape=data_in,
-                   out_feat_shape=data_out,
-                   use_dsc=args.use_dsc, btn_dsc=args.use_btndsc).to(device)
-    print("Using ResNet-GRU!")
+    if "resnet" in args.model: 
+        model = ResNet(in_feat_shape=data_in,
+                       out_feat_shape=data_out,
+                       use_dsc=args.use_dsc, btn_dsc=args.use_btndsc).to(device)
+        print("Using ResNet-GRU!")
+    else:
+        model = SELDNet(in_feat_shape=data_in,
+                        out_feat_shape=data_out).to(device)
+        print("Using SELDNet for training")
 
     write_and_print(logger, 'FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out)) # Get input and output shape sizes
     print("Number of params : {:.3f}M".format(count_parameters(model)/(10**6)))

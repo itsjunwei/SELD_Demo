@@ -257,99 +257,59 @@ class SELDNet(nn.Module):
                  n_attn_heads = 8, p_dropout = 0.1):
         super().__init__()
 
-        self.res_layers = res_layers
         self.verbose = verbose
-        self.dsc = use_dsc
-        self.btn_dsc = btn_dsc
+        
+        self.cnn_filt_1 = ConvBlock(in_channels=in_feat_shape[0],
+                                    out_channels=n_res_filters)
+        self.max_pool1 = nn.MaxPool2d((2,2))
+        self.cnn_dropout_1 = nn.Dropout2d(p=p_dropout)
+        
+        self.cnn_filt_2 = ConvBlock(in_channels=n_res_filters,
+                                    out_channels=n_res_filters)
+        self.max_pool2 = nn.MaxPool2d((2,2))
+        self.cnn_dropout_2 = nn.Dropout2d(p=p_dropout)
+        
+        self.cnn_filt_3 = ConvBlock(in_channels=n_res_filters,
+                                    out_channels=n_res_filters)
+        self.max_pool3 = nn.MaxPool2d((2,2))
+        self.cnn_dropout_3 = nn.Dropout2d(p=p_dropout)
+        
+        self.gru_input_dim = n_res_filters * int(np.floor(in_feat_shape[-1]/8))
+        self.gru = nn.GRU(input_size = self.gru_input_dim, hidden_size=gru_size,
+                          num_layers = 2, batch_first=True, bidirectional=True, dropout=p_dropout)
+        
+        self.mhsa_block_list = nn.ModuleList()
+        self.layer_norm_list = nn.ModuleList()
+        for _ in range(n_attn_layers):
+            self.mhsa_block_list.append(nn.MultiheadAttention(embed_dim=gru_size, num_heads=n_attn_heads, dropout=p_dropout, batch_first=True))
+            self.layer_norm_list.append(nn.LayerNorm(gru_size))
 
-        # resnet stem
-        self.stem = ConvBlockTwo(in_channels= in_feat_shape[0],
-                                out_channels=res_layers[0])
-        self.stempool = nn.AvgPool2d((2,2))
-
-        # resnet layer 1
-        if self.btn_dsc:
-            self.ResNet_1 = BtnDSCLayer(in_channels=self.res_layers[0], out_channels=self.res_layers[1])
-            self.ResNet_2 = BtnDSCLayer(in_channels=self.res_layers[1], out_channels=self.res_layers[1])
-        else:
-            self.ResNet_1 = ResLayer(in_channels=self.res_layers[0], out_channels=self.res_layers[1], dsc=self.dsc)
-            self.ResNet_2 = ResLayer(in_channels=self.res_layers[1], out_channels=self.res_layers[1], dsc=self.dsc)
-        self.pooling1 = nn.AvgPool2d((2,2))
-
-        # resnet layer 2
-        if self.btn_dsc:
-            self.ResNet_3 = BtnDSCLayer(in_channels=self.res_layers[1], out_channels=self.res_layers[2])
-            self.ResNet_4 = BtnDSCLayer(in_channels=self.res_layers[2], out_channels=self.res_layers[2])
-        else:
-            self.ResNet_3 = ResLayer(in_channels=self.res_layers[1], out_channels=self.res_layers[2], dsc=self.dsc)
-            self.ResNet_4 = ResLayer(in_channels=self.res_layers[2], out_channels=self.res_layers[2], dsc=self.dsc)
-        self.pooling2 = nn.AvgPool2d((2,2))
-
-        # resnet layer 3
-        if self.btn_dsc:
-            self.ResNet_5 = BtnDSCLayer(in_channels=self.res_layers[2], out_channels=self.res_layers[3])
-            self.ResNet_6 = BtnDSCLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[3])
-        else:
-            self.ResNet_5 = ResLayer(in_channels=self.res_layers[2], out_channels=self.res_layers[3], dsc=self.dsc)
-            self.ResNet_6 = ResLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[3], dsc=self.dsc)
-        self.pooling3 = nn.AvgPool2d((1,2))
-
-        # resnet layer 4
-        if self.btn_dsc:
-            self.ResNet_7 = BtnDSCLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4])
-            self.ResNet_8 = BtnDSCLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4])
-        else:
-            self.ResNet_7 = ResLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4], dsc=self.dsc)
-            self.ResNet_8 = ResLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4], dsc=self.dsc)
-
-        # determining the bigru size
-        gru_in = self.res_layers[-1]
-        self.bigru = nn.GRU(input_size = gru_in, hidden_size = gru_size,
-                            num_layers = 2, batch_first=True, bidirectional=True, dropout=0.3)
 
         # decoding layers
-        self.fc1 = nn.Linear(in_features=gru_size * 2,
-                             out_features=gru_size, bias=True)
-        self.dropout1 = nn.Dropout(p=0.2)
+        fnn_out_size = int(gru_size // 2)
+        self.fc1 = nn.Linear(in_features=gru_size,
+                             out_features=fnn_out_size, bias=True)
+        self.dropout1 = nn.Dropout(p=p_dropout)
         self.leaky = nn.LeakyReLU(inplace=True)
-        self.fc2 = nn.Linear(in_features=gru_size,
+        self.fc2 = nn.Linear(in_features=fnn_out_size,
                              out_features=out_feat_shape[-1], bias=True)
-        self.dropout2 = nn.Dropout(p=0.2)
+        self.dropout2 = nn.Dropout(p=p_dropout)
 
 
     def forward(self, x):
 
-        x = self.stem(x)
-        x = self.stempool(x)
-
-        x = self.ResNet_1(x)
-        x = self.ResNet_2(x)
-        x = self.pooling1(x)
+        x = self.cnn_dropout_1(self.max_pool1(self.cnn_filt_1(x)))
+        x = self.cnn_dropout_2(self.max_pool2(self.cnn_filt_2(x)))
+        x = self.cnn_dropout_3(self.max_pool3(self.cnn_filt_3(x)))
         if self.verbose:
-            print("After R1 : {}".format(x.shape))
-
-        x = self.ResNet_3(x)
-        x = self.ResNet_4(x)
-        x = self.pooling2(x)
-        if self.verbose:
-            print("After R2 : {}".format(x.shape))
-
-        x = self.ResNet_5(x)
-        x = self.ResNet_6(x)
-        x = self.pooling3(x)
-        if self.verbose:
-            print("After R3 : {}".format(x.shape))
-
-        x = self.ResNet_7(x)
-        x = self.ResNet_8(x)
-        if self.verbose:
-            print("After R4 : {}".format(x.shape))
+            print("After CNN : {}".format(x.shape))
 
         # Preparing for biGRU layers
-        x = torch.mean(x, dim=3)
-        x = x.transpose(1,2).contiguous()
-        x , _ = self.bigru(x)
-        # x = torch.tanh(x)
+        x = x.transpose(1, 2).contiguous()
+        x = x.view(x.shape[0], x.shape[1], -1).contiguous()
+        (x, _) = self.gru(x)
+        x = torch.tanh(x)
+        x = x[:, :, x.shape[-1]//2:] * x[:, :, :x.shape[-1]//2]
 
         # Fully connected decoding layers
         x = self.leaky(self.fc1(self.dropout1(x)))
@@ -476,15 +436,18 @@ if __name__ == "__main__":
     ResNet Full     : 3.125G MACs, 13.706M Params
     ResNet DSC      : 0.982G MACs, 3.972M Params
     ResNet BTNDSC   : 0.767G MACs, 3.020M Params
+    SELDNet         : 0.280G MACs, 3.952M Params
     ResNet Full/2   : 0.816G MACs, 4.911M Params
     ResNet DSC/2    : 0.284G MACs, 2.485M Params
     ResNet BTNDSC/2 : 0.226G MACs, 2.240M Params
     """
 
-    model = ResNet(in_feat_shape=(7, 80, 191),
-                   out_feat_shape=(10, 6),
-                   res_layers=[64, 64, 128, 256, 256],
-                   use_dsc=True, verbose=True, btn_dsc=True)
+    # model = ResNet(in_feat_shape=(7, 80, 191),
+    #                out_feat_shape=(10, 6),
+    #                res_layers=[64, 64, 128, 256, 256],
+    #                use_dsc=True, verbose=True, btn_dsc=True)
+    model = SELDNet(in_feat_shape=(7, 80, 191),
+                    out_feat_shape=(10, 6))
 
     x = torch.rand((input_feature_shape), device=torch.device("cpu"), requires_grad=True)
     y = model(x)
