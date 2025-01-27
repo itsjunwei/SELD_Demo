@@ -223,21 +223,23 @@ if __name__ == '__main__':
 
 
     dataset = seldDatabase()
-    train_data = dataset.get_split("train")
+    # train_data = dataset.get_split("train")
     test_data = dataset.get_split("test")
     
     print("Test batch size : {}".format(test_data['test_batch_size']))
     
-    train_dataset = seldDataset(db_data=train_data)
+    # train_dataset = seldDataset(db_data=train_data)
     test_dataset = seldDataset(db_data=test_data)
     
-    dataloader = DataLoader(train_dataset, batch_size=32, num_workers=0, pin_memory=True, shuffle=True)
+    dataloader = DataLoader(test_dataset, batch_size=32, num_workers=0, pin_memory=True, shuffle=False)
 
     
-    # print('Number of batches: {}'.format(len(dataloader)))
+    print('Number of batches: {}'.format(len(dataloader)))
     
-    # for train_iter, (X, targets) in enumerate(dataloader):
-    #     print("Iteration {}/{}".format(train_iter+1, len(dataloader)), end='\r')
-    #     if train_iter + 1 == len(dataloader):
-    #         print('X: dtype: {} - shape: {}'.format(X.dtype, X.shape))
-    #         print('ACCDDOA: dtype: {} - shape: {}'.format(targets.dtype, targets.shape))
+    for train_iter, (X, targets) in enumerate(dataloader):
+        print("Iteration {}/{}".format(train_iter+1, len(dataloader)), end='\r')
+        if train_iter == 0:
+            print('X: dtype: {} - shape: {}'.format(X.dtype, X.shape))
+            print('ACCDOA: dtype: {} - shape: {}'.format(targets.dtype, targets.shape))
+            print('ACCDOA sample: {}'.format(targets[-3]))
+            break

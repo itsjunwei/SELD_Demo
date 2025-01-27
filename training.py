@@ -13,7 +13,8 @@ from manual_dataset import *
 from rich.progress import Progress
 from models import ResNet
 from torchvision import transforms
-from training_utils import *
+from utilities import *
+import argparse
 
 
 def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
@@ -53,7 +54,8 @@ def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
     return validation_loss, ER, F, LE, LR
 
 
-def train_epoch(data_generator, optimizer, model, criterion, device, nb_batches=1000, step_scheduler=None):
+def train_epoch(data_generator, optimizer, model, criterion, device, 
+                nb_batches=1000, step_scheduler=None, batch_scheduler=None):
     nb_train_batches, train_loss = 0, 0.
     model.train()
 
@@ -86,11 +88,13 @@ def train_epoch(data_generator, optimizer, model, criterion, device, nb_batches=
 
     train_loss /= nb_train_batches
 
+    # For epoch based schedulers
+    if batch_scheduler is not None : batch_scheduler.step()
+
     del data, target, output
     torch.cuda.empty_cache()
     return train_loss
 
-import argparse
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Training Script with Argparse Integration")
@@ -161,6 +165,12 @@ def parse_arguments():
         default=0,
         help="Number of worker threads for data loading."
     )
+    parser.add_argument(
+        "--sched",
+        type=str,
+        default="batch",
+        help="Type of learning rate scheduler used (batch/step)."
+    )
 
     # Data Augmentation
     parser.add_argument(
@@ -216,9 +226,11 @@ def main():
     
     use_augmentations = args.use_augmentations
     if use_augmentations:
-        training_transforms = transforms.Compose([
-                    RandomSpecAugHole(num_holes=5, hole_height=10, hole_width=10, p=0.8)
-                ])
+        training_transforms = ComposeTransformNp([
+            RandomShiftUpDownNp(freq_shift_range=10),
+            CompositeCutout(image_aspect_ratio=80 / 200,
+                            n_zero_channels=3)
+        ])
     else:
         training_transforms = None
 
@@ -257,29 +269,42 @@ def main():
     print("Number of params : {:.3f}M".format(count_parameters(model)/(10**6)))
 
 
-    # Define weight decay settings (exclude bias and normalization layers)
-    print("Training the model for a total of : {} epochs.".format(nb_epoch))
-    no_decay = ['bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {
-            'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            'weight_decay': 1e-4
-        },
-        {
-            'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            'weight_decay': 0.0
-        }
-    ]
+    # # Define weight decay settings (exclude bias and normalization layers)
+    # print("Training the model for a total of : {} epochs.".format(nb_epoch))
+    # no_decay = ['bias', 'LayerNorm.weight']
+    # optimizer_grouped_parameters = [
+    #     {
+    #         'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+    #         'weight_decay': 1e-4
+    #     },
+    #     {
+    #         'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+    #         'weight_decay': 0.0
+    #     }
+    # ]
 
-    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    print("Using Adam with Weight Decay optimizer")
+    # optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    # print("Using Adam with Weight Decay optimizer")
+
+    # Adam Optimizer
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # Now we set the learning rate scheduler
     num_batches_per_epoch = len(training_dataloader)
     total_steps = nb_epoch * num_batches_per_epoch
+    
+    step_scheduler = None
+    batch_scheduler = None
 
-    step_scheduler = CosineWarmup_StepScheduler(optimizer, total_steps=total_steps)
-    print("Cosine Annealing w/ Warmup Step Scheduler is used!\nTotal Number of Steps : {}".format(total_steps))
+    if args.sched == "step":
+        step_scheduler = CosineWarmup_StepScheduler(optimizer, total_steps=total_steps)
+        print("Cosine Annealing w/ Warmup Step Scheduler is used!\nTotal Number of Steps : {}".format(total_steps))
+    elif args.sched == "batch":
+        batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
+        print("Decay Scheduler used!")
+    else:
+        batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
+        print("Decay Scheduler used!")
 
     optimizer.zero_grad()
     optimizer.step()
@@ -300,7 +325,8 @@ def main():
             # TRAINING
             # ---------------------------------------------------------------------
             start_time = time.time()
-            train_loss = train_epoch(training_dataloader, optimizer, model, criterion, device, nb_batches = n_batches, step_scheduler=step_scheduler)
+            train_loss = train_epoch(training_dataloader, optimizer, model, criterion, device, 
+                                     nb_batches = n_batches, step_scheduler=step_scheduler, batch_scheduler=batch_scheduler)
             train_time = time.time() - start_time
 
             # ---------------------------------------------------------------------
