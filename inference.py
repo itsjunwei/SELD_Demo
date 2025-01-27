@@ -12,7 +12,7 @@ def inference(data_generator,  model, device, nb_batches=1000, sed_threshold=0.5
     model.eval()
     
     # Create an instance of the aggregator
-    seld_metric = SELDMetricsAzimuth(n_classes=3, azimuth_threshold=20, sed_threshold=sed_threshold)
+    seld_metric = SELDMetricsAzimuth(n_classes=3, azimuth_threshold=20, sed_threshold=sed_threshold, out_class=True)
 
     with Progress(transient=True) as progress:
         task = progress.add_task("[green]Validation : ", total=nb_batches)
@@ -70,14 +70,16 @@ if __name__ == "__main__":
                                  num_workers=0, drop_last=False,
                                  pin_memory=True, prefetch_factor=2)
 
-    model_weight_loc = "./model_weights/240125_1634_full_500blk_model.h5"
+    model_weight_loc = "./model_weights/270125_1406_dsc_block_model.h5"
     model = ResNet(in_feat_shape=data_in,
                    out_feat_shape=data_out,
                    use_dsc=True, 
                    btn_dsc=False).to(device)
     model.load_state_dict(torch.load(model_weight_loc, map_location='cpu'))
 
-    for sed_thres in np.arange(0.1, 1.1, 0.1):
+    best_er, best_f1, best_le, best_lr, best_seld, best_threshold = 9999, 0., 180., 0., 9999, 0
+
+    for sed_thres in np.arange(0.1, 1.0, 0.1):
         er, f1, le, lr = inference(test_dataloader, 
                                 model=model, 
                                 device=device, 
@@ -86,4 +88,18 @@ if __name__ == "__main__":
 
         e_seld = (er + (1-f1) + (le/180) + (1-lr))/4
 
+        if e_seld < best_seld:
+            best_er, best_f1, best_le, best_lr, best_seld, best_threshold = er, f1, le, lr, e_seld, sed_thres
+
         print("[{:.1f}] ER/F1/LE/LR/SELD: {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.3f}".format(sed_thres, er, f1, le, lr, e_seld))
+
+    print("\nBest Threshold: {:.1f}".format(best_threshold))
+
+    er, f1, le, lr = inference(test_dataloader, 
+                                model=model, 
+                                device=device, 
+                                nb_batches=len(test_dataloader),
+                                sed_threshold=best_threshold)
+
+    e_seld = (er + (1-f1) + (le/180) + (1-lr))/4
+    print("Best ER/F1/LE/LR/SELD: {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.3f}".format(er, f1, le, lr, e_seld))

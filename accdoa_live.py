@@ -9,7 +9,90 @@ import time
 import os
 import gc
 import warnings
-from feature_label_extraction import extract_salsalite
+import librosa
+
+
+def extract_salsalite(audio_data):
+
+    fs = 24000
+    n_fft = 512
+    hop_length = 300
+
+    # Doa info
+    n_mics = 4
+    fmin_doa = 50
+    fmax_doa = 4000
+    
+    """
+    For the demo, fmax_doa = 4kHz, fs = 48kHz, n_fft = 512, hop = 300
+    This results in the following:
+        n_bins      = 257
+        lower_bin   = 1
+        upper_bin   = 42
+        cutoff_bin  = 96 
+        logspecs -> 95 bins total
+        phasespecs -> 41 bins total
+        
+    Since these are all fixed, can we just put them into the config.yml instead
+    and just read them from there and avoid these calculations
+    """
+    d_max = 49 / 1000 # Maximum distance between two microphones
+    f_alias = 343/(2*d_max) # Spatial aliasing frequency
+    fmax_doa = np.min((fmax_doa, fs // 2, f_alias))  
+    n_bins = n_fft // 2 + 1
+    lower_bin = int(np.floor(fmin_doa * n_fft / float(fs)))
+    upper_bin = int(np.floor(fmax_doa * n_fft / float(fs)))
+    lower_bin = np.max((1, lower_bin))
+
+    # Cutoff frequency for spectrograms
+    fmax = 9000  # Hz, meant to reduce feature dimensions
+    cutoff_bin = int(np.floor(fmax * n_fft / float(fs)))  # 9000 Hz, 512 nfft: cutoff_bin = 192
+    assert upper_bin <= cutoff_bin, 'Upper bin for spatial feature is higher than cutoff bin for spectrogram!'
+
+    # Normalization factor for salsa_lite --> 2*pi*f/c
+    c = 343
+    delta = 2 * np.pi * fs / (n_fft * c)
+    freq_vector = np.arange(n_bins)
+    freq_vector[0] = 1
+    freq_vector = freq_vector[:, None, None]  # n_bins x 1 x 1
+    
+    # Extract the features from the audio data
+    log_specs = []
+
+    for imic in np.arange(n_mics):
+        audio_mic_data = audio_data[imic, :]
+        stft = librosa.stft(y=np.asfortranarray(audio_mic_data), 
+                            n_fft=n_fft, 
+                            hop_length=hop_length,
+                            center=True, 
+                            window='hann', 
+                            pad_mode='reflect')
+        if imic == 0:
+            n_frames = stft.shape[1]
+            X = np.zeros((n_bins, n_frames, n_mics), dtype='complex')  # (n_bins, n_frames, n_mics)
+        X[:, :, imic] = stft
+        # Compute log linear power spectrum
+        spec = (np.abs(stft) ** 2).T
+        log_spec = librosa.power_to_db(spec, ref=1.0, amin=1e-10, top_db=None)
+        log_spec = np.expand_dims(log_spec, axis=0)
+        log_specs.append(log_spec)
+    log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
+
+    # Compute spatial feature
+    phase_vector = np.angle(X[:, :, 1:] * np.conj(X[:, :, 0, None]))
+    phase_vector = phase_vector / (delta * freq_vector)
+    phase_vector = np.transpose(phase_vector, (2, 1, 0))  # (n_mics, n_frames, n_bins)
+    
+    # Crop frequency
+    log_specs = log_specs[:, :, lower_bin:cutoff_bin]
+    phase_vector = phase_vector[:, :, lower_bin:cutoff_bin]
+    phase_vector[:, :, upper_bin:] = 0
+    
+    # Stack features
+    audio_feature = np.concatenate((log_specs, phase_vector), axis=0)
+    
+    return audio_feature
+
 
 # Misc utility functions
 def to_numpy(tensor):
@@ -97,7 +180,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/240125_1519_full_highsnr_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/270125_1406_dsc_block_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
@@ -199,7 +282,12 @@ def infer_audio(ort_sess):
     # Basic prediction post-processing functions
     process_start = time.time()
     prediction = convert_output(prediction[0])
-    print("[{}] - {}".format(record_time, prediction))
+    avg_predicion = np.mean(prediction, axis=0)
+    sed = avg_predicion[:3].astype(int)
+    doa = avg_predicion[3:].astype(int)
+    doa = sed * doa
+    outprint = np.concatenate((sed, doa))
+    print("[{}] - {}".format(record_time, outprint))
     tracking_processing.append(time.time()-process_start)
 
 

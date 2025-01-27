@@ -192,24 +192,24 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
     return converted_output
 
 
-# --------------------------------------------------------------------------
-# SELD Metrics
-# --------------------------------------------------------------------------
-
 class SELDMetricsAzimuth:
     """
     Accumulator for 3-class SELD where each sample is:
         [SED1, SED2, SED3, AZI1, AZI2, AZI3]
 
     We'll accumulate over an entire epoch (or multiple epochs) and
-    compute final ER, F, LE, LR at the end.
+    compute final ER, F, LE, LR at the end, **and also class-wise metrics**.
     """
 
-    def __init__(self, n_classes=3, azimuth_threshold=20.0, sed_threshold=0.5):
+    def __init__(self, n_classes=3, azimuth_threshold=20.0, sed_threshold=0.5, out_class=False):
         self.n_classes = n_classes
         self.azimuth_threshold = azimuth_threshold
         self.sed_threshold = sed_threshold
+        self.out_class = out_class
 
+        # -----------------------
+        # Overall accumulators
+        # -----------------------
         # Location-sensitive detection accumulators
         self.TP = 0
         self.FP = 0
@@ -223,9 +223,30 @@ class SELDMetricsAzimuth:
 
         # Class-sensitive localization accumulators
         self.total_DE = 0.0  # sum of azimuth differences for matched TPs
-        self.DE_TP = 0
+        self.DE_TP = 0       # TPs at SED level that were matched for location
         self.DE_FP = 0
         self.DE_FN = 0
+
+        # -----------------------
+        # Class-wise accumulators
+        # -----------------------
+        # For each class, store SED-level TPs, FPs, FNs,
+        # error-rate breakdown, and location metrics.
+        self.class_TP = np.zeros(self.n_classes, dtype=int)
+        self.class_FP = np.zeros(self.n_classes, dtype=int)
+        self.class_FN = np.zeros(self.n_classes, dtype=int)
+
+        self.class_S = np.zeros(self.n_classes, dtype=int)
+        self.class_D = np.zeros(self.n_classes, dtype=int)
+        self.class_I = np.zeros(self.n_classes, dtype=int)
+        self.class_Nref = np.zeros(self.n_classes, dtype=int)
+
+        # For localization
+        self.class_total_DE = np.zeros(self.n_classes, dtype=float)
+        self.class_DE_TP = np.zeros(self.n_classes, dtype=int)
+        self.class_DE_FP = np.zeros(self.n_classes, dtype=int)
+        self.class_DE_FN = np.zeros(self.n_classes, dtype=int)
+
 
     def update(self, gt, pred):
         """
@@ -242,8 +263,6 @@ class SELDMetricsAzimuth:
           3) For matched positives, measure azimuth difference
              and decide if it's within azimuth_threshold for a "true positive"
              or a "false positive."
-
-        We'll do a mini confusion-matrix update for each sample.
         """
 
         # 1) Move to CPU np arrays if needed
@@ -253,10 +272,10 @@ class SELDMetricsAzimuth:
             pred = pred.detach().cpu().numpy()
 
         # 2) Separate SED from azimuth
-        gt_sed  = gt[:, :self.n_classes]      # shape (B, 3)
-        gt_azi  = gt[:, self.n_classes:2*self.n_classes]  # shape (B, 3)
-        pred_sed = pred[:, :self.n_classes]   # shape (B, 3)
-        pred_azi = pred[:, self.n_classes:2*self.n_classes]  # shape (B, 3)
+        gt_sed   = gt[:, :self.n_classes]                   # shape (B, 3)
+        gt_azi   = gt[:, self.n_classes:2*self.n_classes]   # shape (B, 3)
+        pred_sed = pred[:, :self.n_classes]                 # shape (B, 3)
+        pred_azi = pred[:, self.n_classes:2*self.n_classes] # shape (B, 3)
 
         # 3) Binarize predicted SED
         pred_sed_bin = (pred_sed > self.sed_threshold).astype(np.int32)
@@ -264,69 +283,89 @@ class SELDMetricsAzimuth:
 
         batch_size = gt.shape[0]
 
-        # Loop over each sample in the batch
         for i in range(batch_size):
-            # For SED-like error breakdown on a "per-class" basis,
-            # let's see how many GT=1, pred=1, etc.
-            # Then we can find how many TPs, FPs, FNs for location-sensitivity.
+            # Count total # of reference events (for overall metrics)
+            n_ref_events = np.sum(gt_sed_bin[i])  # e.g. could be 0..3
+            self.Nref += n_ref_events
+
+            # We'll track how many false positives and negatives
+            # occurred within this sample across classes,
+            # for computing Substitution, Deletion, Insertion
             loc_FN_sample = 0
             loc_FP_sample = 0
 
-            # Count how many ground-truth events are in sample i
-            n_ref_events = np.sum(gt_sed_bin[i])  # e.g. could be 0..3
-            self.Nref += n_ref_events  # used in ER denominator
-
-            # For each class c in [0..2]
+            # For each class c in [0..n_classes-1]
             for c in range(self.n_classes):
                 gt_active = (gt_sed_bin[i, c] == 1)
                 pred_active = (pred_sed_bin[i, c] == 1)
 
+                # Update the total reference events for that class
+                if gt_active:
+                    self.class_Nref[c] += 1
+
                 if gt_active and pred_active:
                     # This is a matched "positive" at the SED level.
                     # Now check azimuth difference for location sensitivity
-                    diff = wraparound_azimuth_diff_deg(pred_azi[i,c], gt_azi[i,c])
-                    
+                    diff = wraparound_azimuth_diff_deg(pred_azi[i, c], gt_azi[i, c])
+
                     # Accumulate difference for class-sensitive localization
                     self.total_DE += diff
-                    self.DE_TP += 1  # we found a matched class
+                    self.class_total_DE[c] += diff
 
-                    if diff <= self.azimuth_threshold: # Within localization threshold
+                    self.DE_TP += 1
+                    self.class_DE_TP[c] += 1
+
+                    # Decide if it's within localization threshold => "true positive"
+                    if diff <= self.azimuth_threshold:
                         self.TP += 1
-                    else: # Beyond localization threshold
-                        loc_FP_sample += 1
+                        self.class_TP[c] += 1
+                    else:
                         self.FP += 1
+                        self.class_FP[c] += 1
+                        self.DE_FP += 1
+                        self.class_DE_FP[c] += 1
+                        loc_FP_sample += 1
 
                 elif gt_active and not pred_active:
                     # missed event => false negative
-                    loc_FN_sample += 1
                     self.FN += 1
+                    self.class_FN[c] += 1
+
                     self.DE_FN += 1
+                    self.class_DE_FN[c] += 1
+
+                    loc_FN_sample += 1
 
                 elif (not gt_active) and pred_active:
                     # spurious event => false positive
-                    loc_FP_sample += 1
                     self.FP += 1
+                    self.class_FP[c] += 1
+
                     self.DE_FP += 1
+                    self.class_DE_FP[c] += 1
+
+                    loc_FP_sample += 1
                 else:
-                    # both inactive => true negative for SED, doesn't affect location metrics
+                    # both inactive => true negative for SED, no location metrics update
                     pass
 
-            # After analyzing all 3 classes for this sample,
-            # we can update the S, D, I for error rate:
-            self.S += min(loc_FP_sample, loc_FN_sample)  # substitution
-            self.D += max(0, loc_FN_sample - loc_FP_sample)  # deletion
-            self.I += max(0, loc_FP_sample - loc_FN_sample)  # insertion
+            # After analyzing all n_classes for this sample,
+            # update S, D, I for the overall error rate:
+            self.S += min(loc_FP_sample, loc_FN_sample)
+            self.D += max(0, loc_FN_sample - loc_FP_sample)
+            self.I += max(0, loc_FP_sample - loc_FN_sample)
 
     def compute(self):
         """
-        Returns the final SELD metrics after all updates:
+        Returns the final SELD metrics after all updates, for the entire set:
           ER, F, LE, LR
+        And also returns the class-wise metrics in a dict or tuple.
         """
-        # 1) Location-sensitive detection metrics
+
+        # ---- Overall metrics ----
         ER = (self.S + self.D + self.I) / float(self.Nref + eps)
         F  = self.TP / (eps + self.TP + 0.5 * (self.FP + self.FN))
 
-        # 2) Class-sensitive localization metrics
         if self.DE_TP > 0:
             LE = self.total_DE / float(self.DE_TP)
         else:
@@ -334,7 +373,57 @@ class SELDMetricsAzimuth:
 
         LR = self.DE_TP / (eps + self.DE_TP + self.DE_FN)
 
+        # ---- Class-wise metrics ----
+        if self.out_class:
+            class_ER = np.zeros(self.n_classes, dtype=np.float32)
+            class_F  = np.zeros(self.n_classes, dtype=np.float32)
+            class_LE = np.zeros(self.n_classes, dtype=np.float32)
+            class_LR = np.zeros(self.n_classes, dtype=np.float32)
+
+            for c in range(self.n_classes):
+                # Error Rate (ER) for class c
+                class_ER[c] = (
+                    (self.class_FP[c] + self.class_FN[c]) /
+                    float(self.class_Nref[c] + eps)
+                )
+
+                # F-score for class c
+                class_F[c] = (
+                    self.class_TP[c] /
+                    (eps + self.class_TP[c] + 0.5 * (self.class_FP[c] + self.class_FN[c]))
+                )
+
+                # Localization metrics for class c
+                if self.class_DE_TP[c] > 0:
+                    class_LE[c] = self.class_total_DE[c] / float(self.class_DE_TP[c])
+                else:
+                    class_LE[c] = 180.0  # fallback if no TPs for class c
+
+                class_LR[c] = (
+                    self.class_DE_TP[c] /
+                    (eps + self.class_DE_TP[c] + self.class_DE_FN[c])
+                )
+
+            # Return both overall and class-wise
+            classwise = {
+                'ER': class_ER,
+                'F':  class_F,
+                'LE': class_LE,
+                'LR': class_LR
+            }
+            
+            class_names = ["Alarm", "Impact", "Speech"]
+            print("Class-wise Metrics:")
+            print(f"{'Class':<10} {'ER':>7} {'F':>7} {'LE':>7} {'LR':>7}")
+            for i, cname in enumerate(class_names):
+                er_i  = classwise['ER'][i]
+                f_i   = classwise['F'][i]
+                le_i  = classwise['LE'][i]
+                lr_i  = classwise['LR'][i]
+                print(f"{cname:<10} {er_i:7.3f} {f_i:7.3f} {le_i:7.3f} {lr_i:7.3f}")
+
         return ER, F, LE, LR
+
 
 
 # --------------------------------------------------------------------------
