@@ -27,6 +27,7 @@ class seldDatabase:
         self.feature_test_dir  = os.path.join(feat_label_dir, "test", "metadata")
         self.gt_meta_train_dir = os.path.join(feat_label_dir, "train", "tracks")
         self.gt_meta_test_dir  = os.path.join(feat_label_dir, "test", "metadata")
+        print("Loading files from {}\n\t\t and {}".format(self.feature_train_dir, self.gt_meta_train_dir))
 
         self.n_classes = n_classes
         self.fs = fs
