@@ -327,10 +327,12 @@ class ResNet(nn.Module):
     def __init__(self, in_feat_shape, out_feat_shape, 
                  gru_size = 256, verbose=False,
                  res_layers = [64, 64, 128, 256, 512],
-                 use_dsc = False, btn_dsc=False):
+                 use_dsc = False, btn_dsc=False, lightweight=False):
         super().__init__()
 
         self.res_layers = res_layers
+        if lightweight:
+            self.res_layers = [32, 32, 64, 128, 256]
         self.verbose = verbose
         self.dsc = use_dsc
         self.btn_dsc = btn_dsc

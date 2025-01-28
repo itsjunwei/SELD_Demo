@@ -544,7 +544,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_silence"
+    output_dir = "./output_data_block_large"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
@@ -552,9 +552,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 60
+            n_tracks = 120
         elif split == "test":
-            n_tracks = 10
+            n_tracks = 20
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
