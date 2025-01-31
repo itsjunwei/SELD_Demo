@@ -119,6 +119,12 @@ def parse_arguments():
         help="Use Bottleneck ResBlks. Depthwise Separable Convolutions enabled by default."
     )
 
+    parser.add_argument(
+        "--lightweight",
+        action="store_true",
+        help="Use the lightweight version of the models"
+    )
+
     # Directories
     parser.add_argument(
         "--log_dir",
@@ -239,6 +245,8 @@ def main():
     if use_augmentations:
         training_transforms = ComposeTransformNp([
             RandomShiftUpDownNp(freq_shift_range=10),
+            CompositeCutout(image_aspect_ratio=80/191,
+                            n_zero_channels=3),
         ])
     else:
         training_transforms = None
@@ -271,7 +279,8 @@ def main():
     if "resnet" in args.model: 
         model = ResNet(in_feat_shape=data_in,
                        out_feat_shape=data_out,
-                       use_dsc=args.use_dsc, btn_dsc=args.use_btndsc).to(device)
+                       use_dsc=args.use_dsc, btn_dsc=args.use_btndsc,
+                       lightweight=args.lightweight).to(device)
         print("Using ResNet-GRU!")
     else:
         model = SELDNet(in_feat_shape=data_in,

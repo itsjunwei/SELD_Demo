@@ -331,8 +331,9 @@ class ResNet(nn.Module):
         super().__init__()
 
         self.res_layers = res_layers
-        if lightweight:
-            self.res_layers = [32, 32, 64, 128, 256]
+        self.lightweight = lightweight
+        if self.lightweight:
+            self.res_layers = [64, 64, 128, 256]
         self.verbose = verbose
         self.dsc = use_dsc
         self.btn_dsc = btn_dsc
@@ -370,12 +371,13 @@ class ResNet(nn.Module):
         self.pooling3 = nn.AvgPool2d((1,2))
 
         # resnet layer 4
-        if self.btn_dsc:
-            self.ResNet_7 = BtnDSCLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4])
-            self.ResNet_8 = BtnDSCLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4])
-        else:
-            self.ResNet_7 = ResLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4], dsc=self.dsc)
-            self.ResNet_8 = ResLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4], dsc=self.dsc)
+        if not self.lightweight:
+            if self.btn_dsc:
+                self.ResNet_7 = BtnDSCLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4])
+                self.ResNet_8 = BtnDSCLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4])
+            else:
+                self.ResNet_7 = ResLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[4], dsc=self.dsc)
+                self.ResNet_8 = ResLayer(in_channels=self.res_layers[4], out_channels=self.res_layers[4], dsc=self.dsc)
 
         # determining the bigru size
         gru_in = self.res_layers[-1]
@@ -415,16 +417,16 @@ class ResNet(nn.Module):
         if self.verbose:
             print("After R3 : {}".format(x.shape))
 
-        x = self.ResNet_7(x)
-        x = self.ResNet_8(x)
-        if self.verbose:
-            print("After R4 : {}".format(x.shape))
+        if not self.lightweight:
+            x = self.ResNet_7(x)
+            x = self.ResNet_8(x)
+            if self.verbose:
+                print("After R4 : {}".format(x.shape))
 
         # Preparing for biGRU layers
         x = torch.mean(x, dim=3)
         x = x.transpose(1,2).contiguous()
         x , _ = self.bigru(x)
-        # x = torch.tanh(x)
 
         # Fully connected decoding layers
         x = self.leaky(self.fc1(self.dropout1(x)))
@@ -446,14 +448,19 @@ if __name__ == "__main__":
     ResNet Full/2   : 0.816G MACs, 4.911M Params
     ResNet DSC/2    : 0.284G MACs, 2.485M Params
     ResNet BTNDSC/2 : 0.226G MACs, 2.240M Params
+
+    Light BTNDSC    : 0.717G MACs, 2.259M Params
+    Light DSC       : 0.860G MACs, 2.509M Params
+    Light Full      : 2.197G MACs, 4.919M Params
     """
 
-    # model = ResNet(in_feat_shape=(7, 80, 191),
-    #                out_feat_shape=(10, 6),
-    #                res_layers=[64, 64, 128, 256, 256],
-    #                use_dsc=True, verbose=True, btn_dsc=True)
-    model = SELDNet(in_feat_shape=(7, 80, 191),
-                    out_feat_shape=(10, 6))
+    model = ResNet(in_feat_shape=(7, 80, 191),
+                   out_feat_shape=(10, 6),
+                   res_layers=[64, 64, 128, 256, 256],
+                   use_dsc=False, verbose=True, btn_dsc=False,
+                   lightweight=True)
+    # model = SELDNet(in_feat_shape=(7, 80, 191),
+    #                 out_feat_shape=(10, 6))
 
     x = torch.rand((input_feature_shape), device=torch.device("cpu"), requires_grad=True)
     y = model(x)
