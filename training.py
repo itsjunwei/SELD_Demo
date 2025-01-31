@@ -245,8 +245,8 @@ def main():
     if use_augmentations:
         training_transforms = ComposeTransformNp([
             RandomShiftUpDownNp(freq_shift_range=10),
-            CompositeCutout(image_aspect_ratio=80/191,
-                            n_zero_channels=3),
+            # CompositeCutout(image_aspect_ratio=80/191,
+            #                 n_zero_channels=3),
         ])
     else:
         training_transforms = None
