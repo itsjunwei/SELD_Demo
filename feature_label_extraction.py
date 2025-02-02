@@ -4,7 +4,7 @@ import librosa
 from sklearn import preprocessing
 
 
-def extract_salsalite(audio_data):
+def extract_salsalite(audio_data, normalize=True):
 
     fs = 24000
     n_fft = 512
@@ -69,6 +69,14 @@ def extract_salsalite(audio_data):
         log_spec = np.expand_dims(log_spec, axis=0)
         log_specs.append(log_spec)
     log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
+    
+    # Normalize Log Power Spectra if Requested
+    if normalize:
+        # Z-score normalization per frequency bin across all frames and mics
+        mean = np.mean(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
+        std = np.std(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
+        std[std == 0] = 1  # Prevent division by zero
+        log_specs = (log_specs - mean) / std  # Normalized log_specs
 
     # Compute spatial feature
     phase_vector = np.angle(X[:, :, 1:] * np.conj(X[:, :, 0, None]))
@@ -134,7 +142,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_large"
+    output_dir = "./output_data_block_demo"
     feat_dir = output_dir.replace("output_data", "feat_label")
     # feat_dir = "./feat_label_block_silence"
     fs = 24000
@@ -180,41 +188,41 @@ if __name__ == "__main__":
                 # Verbose printing
                 print("{}: {}, {}".format(new_feat_fname, _feat.shape, accdoa_labels.shape))
 
-    # Initialize spec_scalers as None; it will be initialized after loading the first file
-    spec_scalers = None
-    for root, dirs, filenames in os.walk(feat_dir):
-        for fname in filenames:
-            fpath = os.path.join(root, fname)
-            if "tracks" in fpath:
-                print("Normalizing for: {}".format(fpath))
-                feat_file = np.load(fpath)
-                if spec_scalers is None:
-                    num_channels = feat_file.shape[0]
-                    spec_scalers = [preprocessing.StandardScaler() for _ in range(num_channels)]
-                    print(f'Initialized {num_channels} StandardScalers for each channel.')
+    # # Initialize spec_scalers as None; it will be initialized after loading the first file
+    # spec_scalers = None
+    # for root, dirs, filenames in os.walk(feat_dir):
+    #     for fname in filenames:
+    #         fpath = os.path.join(root, fname)
+    #         if "tracks" in fpath:
+    #             print("Normalizing for: {}".format(fpath))
+    #             feat_file = np.load(fpath)
+    #             if spec_scalers is None:
+    #                 num_channels = feat_file.shape[0]
+    #                 spec_scalers = [preprocessing.StandardScaler() for _ in range(num_channels)]
+    #                 print(f'Initialized {num_channels} StandardScalers for each channel.')
 
-                # Fit each scaler with the data from its respective channel
-                for ch in range(num_channels):
-                    channel_data = feat_file[ch].reshape(-1, feat_file.shape[2])  # Shape: (time, frequency)
-                    spec_scalers[ch].partial_fit(channel_data)
+    #             # Fit each scaler with the data from its respective channel
+    #             for ch in range(num_channels):
+    #                 channel_data = feat_file[ch].reshape(-1, feat_file.shape[2])  # Shape: (time, frequency)
+    #                 spec_scalers[ch].partial_fit(channel_data)
 
-                # Clean up
-                del feat_file
+    #             # Clean up
+    #             del feat_file
 
-    print('Normalizing feature files...')
-    for root, dirs, filenames in os.walk(feat_dir):
-        for fname in filenames:
-            fpath = os.path.join(root, fname)
-            if "tracks" in fpath:
-                feat_file = np.load(fpath)
+    # print('Normalizing feature files...')
+    # for root, dirs, filenames in os.walk(feat_dir):
+    #     for fname in filenames:
+    #         fpath = os.path.join(root, fname)
+    #         if "tracks" in fpath:
+    #             feat_file = np.load(fpath)
 
-                # Apply the scaler for each channel
-                for ch in range(num_channels):
-                    # Reshape the data to (samples, features) if necessary
-                    channel_data = feat_file[ch].reshape(-1, feat_file.shape[2])  # Shape: (time, frequency)
-                    normalized_channel = spec_scalers[ch].transform(channel_data)
-                    feat_file[ch] = normalized_channel.reshape(feat_file.shape[1], feat_file.shape[2])
+    #             # Apply the scaler for each channel
+    #             for ch in range(num_channels):
+    #                 # Reshape the data to (samples, features) if necessary
+    #                 channel_data = feat_file[ch].reshape(-1, feat_file.shape[2])  # Shape: (time, frequency)
+    #                 normalized_channel = spec_scalers[ch].transform(channel_data)
+    #                 feat_file[ch] = normalized_channel.reshape(feat_file.shape[1], feat_file.shape[2])
 
-                np.save(fpath, feat_file)
-                print("Normalized for: {}, Shape: {}".format(fpath, feat_file.shape))
-                del feat_file
+    #             np.save(fpath, feat_file)
+    #             print("Normalized for: {}, Shape: {}".format(fpath, feat_file.shape))
+    #             del feat_file

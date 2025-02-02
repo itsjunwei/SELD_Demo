@@ -12,7 +12,7 @@ import warnings
 import librosa
 
 
-def extract_salsalite(audio_data):
+def extract_salsalite(audio_data, normalize=True):
 
     fs = 24000
     n_fft = 512
@@ -22,7 +22,7 @@ def extract_salsalite(audio_data):
     n_mics = 4
     fmin_doa = 50
     fmax_doa = 4000
-    
+
     """
     For the demo, fmax_doa = 4kHz, fs = 48kHz, n_fft = 512, hop = 300
     This results in the following:
@@ -32,10 +32,11 @@ def extract_salsalite(audio_data):
         cutoff_bin  = 96 
         logspecs -> 95 bins total
         phasespecs -> 41 bins total
-        
+
     Since these are all fixed, can we just put them into the config.yml instead
     and just read them from there and avoid these calculations
     """
+
     d_max = 49 / 1000 # Maximum distance between two microphones
     f_alias = 343/(2*d_max) # Spatial aliasing frequency
     fmax_doa = np.min((fmax_doa, fs // 2, f_alias))  
@@ -55,7 +56,7 @@ def extract_salsalite(audio_data):
     freq_vector = np.arange(n_bins)
     freq_vector[0] = 1
     freq_vector = freq_vector[:, None, None]  # n_bins x 1 x 1
-    
+
     # Extract the features from the audio data
     log_specs = []
 
@@ -71,26 +72,37 @@ def extract_salsalite(audio_data):
             n_frames = stft.shape[1]
             X = np.zeros((n_bins, n_frames, n_mics), dtype='complex')  # (n_bins, n_frames, n_mics)
         X[:, :, imic] = stft
+
         # Compute log linear power spectrum
         spec = (np.abs(stft) ** 2).T
         log_spec = librosa.power_to_db(spec, ref=1.0, amin=1e-10, top_db=None)
         log_spec = np.expand_dims(log_spec, axis=0)
         log_specs.append(log_spec)
+
+    # Convert List to NumPy Array
     log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
+
+    # Normalize Log Power Spectra if Requested
+    if normalize:
+        # Z-score normalization per frequency bin across all frames and mics
+        mean = np.mean(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
+        std = np.std(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
+        std[std == 0] = 1  # Prevent division by zero
+        log_specs = (log_specs - mean) / std  # Normalized log_specs
 
     # Compute spatial feature
     phase_vector = np.angle(X[:, :, 1:] * np.conj(X[:, :, 0, None]))
     phase_vector = phase_vector / (delta * freq_vector)
     phase_vector = np.transpose(phase_vector, (2, 1, 0))  # (n_mics, n_frames, n_bins)
-    
+
     # Crop frequency
     log_specs = log_specs[:, :, lower_bin:cutoff_bin]
     phase_vector = phase_vector[:, :, lower_bin:cutoff_bin]
     phase_vector[:, :, upper_bin:] = 0
-    
+
     # Stack features
     audio_feature = np.concatenate((log_specs, phase_vector), axis=0)
-    
+
     return audio_feature
 
 
@@ -116,12 +128,12 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
         return A.reshape(A.shape[0] * A.shape[1], A.shape[2])
 
     predictions = reshape_3Dto2D(predictions)  # shape -> (600, 6)
-    
+
     # --------------------------------------------------------------------------
     # 2) Separate x and y for each of n_classes
     # --------------------------------------------------------------------------
     pred_x , pred_y = predictions[:, :n_classes] ,  predictions[:, n_classes:]
-    
+
     # --------------------------------------------------------------------------
     # 3) SED mask : "Active" if sqrt(x^2 + y^2) > some_threshold
     # --------------------------------------------------------------------------
@@ -133,10 +145,10 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
     # --------------------------------------------------------------------------
     azi = np.arctan2(pred_y, pred_x) * 180.0 / np.pi   # shape (600, 3)
     azi = azi * sed
-    
+
     # Put angles in [0, 360):
     azi[azi < 0] += 360.0
-    
+
     converted_output = np.concatenate((sed, azi), axis=-1)
     return converted_output
 
@@ -180,12 +192,12 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/270125_1406_dsc_block_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/300125_1418_btn_dsc_block_large_100epochs_aug_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
 CHUNK = 500
-FORMAT = pyaudio.paFloat32
+FORMAT = pyaudio.paInt16
 CHANNELS = 4
 RATE = 24000
 MAX_RECORDINGS = 48
@@ -212,7 +224,7 @@ def record_audio(stream, stop_event):
     """Define the data buffer queue outside of the function and call it globally.
     This function is used to record audio data and push them to the 
     buffer queue for another function to use for inference. 
-    
+
     Inputs:
         stream (pyaudio.stream) : Stream class defined by PyAudio
         stop_event (thread) : Thread to indicate whether this thread should continue running
@@ -227,7 +239,8 @@ def record_audio(stream, stop_event):
         try:
             # Read the data from the buffer as np.float32
             time_now = datetime.now()
-            buffer = np.frombuffer(stream.read(fpb, exception_on_overflow=False), dtype=np.float32)
+            buffer_int16 = np.frombuffer(stream.read(fpb, exception_on_overflow=False), dtype=np.int16)
+            buffer = buffer_int16.astype(np.float32)
 
             # Append the audio data and recording time into the buffer queues
             data_queue.append((time_now, buffer))

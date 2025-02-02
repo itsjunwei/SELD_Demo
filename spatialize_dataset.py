@@ -129,7 +129,7 @@ def convolve_mono_with_4ch_rir(event_mono: np.ndarray,
     out_channels = []
     for c in range(4):
         ch_ir = rir_4ch[:, c]
-        convolved = convolve(event_mono, ch_ir, mode='full')
+        convolved = convolve(event_mono, ch_ir, mode='same')
         out_channels.append(convolved)
     # shape: (n_samples, 4)
     return np.column_stack(out_channels)
@@ -336,7 +336,9 @@ def create_spatialized_mix_from_class_audio(
     # --------------------------
     # 1) Load the 4-ch ambience
     # --------------------------
-    ambience_4ch, sr_amb = sf.read(ambience_path_4ch)
+    import librosa
+    ambience_4ch, sr_amb = librosa.load(ambience_path_4ch, sr=sr, mono=False, dtype=np.float32)
+    ambience_4ch = ambience_4ch.T
     if ambience_4ch.ndim != 2 or ambience_4ch.shape[1] != 4:
         raise ValueError("Ambience must be 4-channel (samples,4).")
 
@@ -399,8 +401,11 @@ def create_spatialized_mix_from_class_audio(
             # Find SRIR
             srir_candidates = [
                 f for f in os.listdir(srir_folder_4ch)
-                if f.endswith(".wav") and str(angle_chosen) in f
+                if f == f"{angle_chosen}.wav"
             ]
+            
+            assert len(srir_candidates) == 1, "More than 1 SRIR candidate found -- {}".format(len(srir_candidates))
+            
             if not srir_candidates:
                 print(f"No SRIR found for angle={angle_chosen}, skipping.")
                 continue
@@ -527,6 +532,16 @@ def create_spatialized_mix_from_class_audio(
     # ------------------------------
     # 7) Write final mixture
     # ------------------------------
+
+    # Prevent clipping
+    peak = np.max(np.abs(final_mix_4ch))
+    if peak > 1e-12:  # avoid division-by-zero
+        desired_peak = 0.8
+        scale_factor = desired_peak / peak
+        final_mix_4ch *= scale_factor
+
+    assert sr_amb == sr_cls == sr_srir, "Sampling rates are off : {}/{}/{}".format(sr_amb, sr_cls, sr_srir)
+
     sf.write(out_audio_path_4ch, final_mix_4ch, sr)
     print(f"Created 4-channel mixture: {out_audio_path_4ch}")
 
@@ -544,7 +559,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_large"
+    output_dir = "./output_data_block_demo"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
@@ -552,9 +567,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 120
+            n_tracks = 60
         elif split == "test":
-            n_tracks = 20
+            n_tracks = 10
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 

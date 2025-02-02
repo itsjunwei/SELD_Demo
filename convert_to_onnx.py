@@ -33,7 +33,7 @@ except ImportError:
 #############################
 
 # Paths
-MODEL_WEIGHTS_NAME = '270125_1406_dsc_block_model'
+MODEL_WEIGHTS_NAME = '300125_1418_btn_dsc_block_large_100epochs_aug_model'
 H5_WEIGHTS_PATH = './model_weights/{}.h5'.format(MODEL_WEIGHTS_NAME)
 onnx_dir = "./onnx_models"
 os.makedirs(onnx_dir, exist_ok=True)
@@ -171,7 +171,7 @@ def main(args):
     # Instantiate the model
     model = ResNet(in_feat_shape=(7,80,191),
                    out_feat_shape=(10,6),
-                   use_dsc=True)
+                   btn_dsc=True)
     print("Model architecture instantiated.")
 
     # Load weights from .h5
