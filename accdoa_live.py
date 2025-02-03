@@ -172,19 +172,9 @@ gc.collect()
 n_classes = 3
 
 # Tracking the virtual memory consumption of the device
-tracking_memory = []
 tracking_feature_ex = []
 tracking_model_inf = []
 tracking_processing = []
-
-# Moving average filter of 5 windows with 4 classes
-moving_sed = []
-moving_doa = []
-
-for i in range(5):
-    starting_zeros = [0] * n_classes
-    moving_sed.append(starting_zeros)
-    moving_doa.append(starting_zeros)
 
 
 # Setup onnxruntime
@@ -192,7 +182,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/020225_2102_dsc_block_demolight_aug_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/030225_1553_btndsc_2fps_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
@@ -295,12 +285,12 @@ def infer_audio(ort_sess):
     # Basic prediction post-processing functions
     process_start = time.time()
     prediction = convert_output(prediction[0])
-    avg_predicion = np.mean(prediction, axis=0)
-    sed = avg_predicion[:3].astype(int)
-    doa = avg_predicion[3:].astype(int)
-    doa = sed * doa
-    outprint = np.concatenate((sed, doa))
-    print("[{}] - {}".format(record_time, outprint))
+    # avg_predicion = np.mean(prediction, axis=0)
+    # sed = avg_predicion[:3].astype(int)
+    # doa = avg_predicion[3:].astype(int)
+    # doa = sed * doa
+    # outprint = np.concatenate((sed, doa))
+    print("[{}] - {}".format(record_time, prediction))
     tracking_processing.append(time.time()-process_start)
 
 

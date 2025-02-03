@@ -202,11 +202,12 @@ def main():
     write_and_print(logger, f"Training dataloader: {n_batches} batches (batch size: {args.batch_size})")
 
     # Deciding on model architecture
-    if "resnet" in args.model.lower(): 
+    if "resnet" in args.model.lower():
+        fps = 2 if "2fps" in args.feat_label_dir else 10
         model = ResNet(in_feat_shape=data_in,
                        out_feat_shape=data_out,
                        use_dsc=args.use_dsc, btn_dsc=args.use_btndsc,
-                       lightweight=args.lightweight).to(device)
+                       lightweight=args.lightweight, fps=fps).to(device)
         write_and_print(logger, "Using ResNet-GRU!")
         write_and_print(logger, f"BTNDSC:      {args.use_btndsc}")
         write_and_print(logger, f"DSC:         {args.use_dsc}")

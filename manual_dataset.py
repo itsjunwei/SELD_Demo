@@ -18,10 +18,13 @@ class seldDatabase:
                  feat_label_dir : str = './feat_label', 
                  n_classes: int = 3, fs: int = 24000,
                  n_fft: int = 512, hop_len: int = 300, label_rate: float = 10, 
-                 train_chunk_len_s: float = 1.0, train_chunk_hop_len_s: float = 0.5,
+                 train_chunk_len_s: float = 1.0, train_chunk_hop_len_s: float = 1.0,
                  n_channels: int = 7, n_bins: int = 191):
 
         self.feat_label_dir = feat_label_dir
+        if "2fps" in self.feat_label_dir:
+            label_rate = 2
+            self.label_rate = 2
         self.feature_train_dir = os.path.join(feat_label_dir, "train", "tracks")
         self.feature_test_dir  = os.path.join(feat_label_dir, "test", "metadata")
         self.gt_meta_train_dir = os.path.join(feat_label_dir, "train", "tracks")
@@ -143,7 +146,7 @@ class seldDatabase:
 
                 # We match the feature length with the number of ground truth labels that we have
                 n_gt_frames = accddoa.shape[0]
-                n_frames = n_gt_frames * 8
+                n_frames = n_gt_frames * self.label_upsample_ratio
                 if feature.shape[1] != n_frames : feature = feature[:, :n_frames]
 
                 # Get sed segment indices

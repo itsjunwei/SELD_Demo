@@ -327,7 +327,8 @@ class ResNet(nn.Module):
     def __init__(self, in_feat_shape, out_feat_shape, 
                  gru_size = 256, verbose=False,
                  res_layers = [64, 64, 128, 256, 512],
-                 use_dsc = False, btn_dsc=False, lightweight=False):
+                 use_dsc = False, btn_dsc=False, lightweight=False,
+                 fps=10):
         super().__init__()
 
         self.res_layers = res_layers
@@ -341,7 +342,10 @@ class ResNet(nn.Module):
         # resnet stem
         self.stem = ConvBlockTwo(in_channels= in_feat_shape[0],
                                 out_channels=res_layers[0])
-        self.stempool = nn.AvgPool2d((2,2))
+        if fps == 10:
+            self.stempool = nn.AvgPool2d((2,2))
+        else:
+            self.stempool = nn.AvgPool2d((5,2))
 
         # resnet layer 1
         if self.btn_dsc:
@@ -350,7 +354,10 @@ class ResNet(nn.Module):
         else:
             self.ResNet_1 = ResLayer(in_channels=self.res_layers[0], out_channels=self.res_layers[1], dsc=self.dsc)
             self.ResNet_2 = ResLayer(in_channels=self.res_layers[1], out_channels=self.res_layers[1], dsc=self.dsc)
-        self.pooling1 = nn.AvgPool2d((2,2))
+        if fps == 10:
+            self.pooling1 = nn.AvgPool2d((2,2))
+        else:
+            self.pooling1 = nn.AvgPool2d((2,2))
 
         # resnet layer 2
         if self.btn_dsc:
@@ -368,7 +375,10 @@ class ResNet(nn.Module):
         else:
             self.ResNet_5 = ResLayer(in_channels=self.res_layers[2], out_channels=self.res_layers[3], dsc=self.dsc)
             self.ResNet_6 = ResLayer(in_channels=self.res_layers[3], out_channels=self.res_layers[3], dsc=self.dsc)
-        self.pooling3 = nn.AvgPool2d((1,2))
+        if fps == 10:
+            self.pooling3 = nn.AvgPool2d((1,2))
+        else:
+            self.pooling3 = nn.AvgPool2d((2,2))
 
         # resnet layer 4
         if not self.lightweight:
@@ -438,7 +448,7 @@ class ResNet(nn.Module):
 
 if __name__ == "__main__":
     input_feature_shape = (1, 7, 80, 191) # SALSA-Lite input shape
-    output_feature_shape = (1, 10, 6)
+    output_feature_shape = (1, 2, 6)
     
     """
     ResNet Full     : 3.125G MACs, 13.706M Params
@@ -455,10 +465,10 @@ if __name__ == "__main__":
     """
 
     model = ResNet(in_feat_shape=(7, 80, 191),
-                   out_feat_shape=(10, 6),
+                   out_feat_shape=(2, 6),
                    res_layers=[64, 64, 128, 256, 256],
                    use_dsc=False, verbose=True, btn_dsc=False,
-                   lightweight=True)
+                   lightweight=True, fps=2)
     # model = SELDNet(in_feat_shape=(7, 80, 191),
     #                 out_feat_shape=(10, 6))
 
