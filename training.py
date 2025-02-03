@@ -60,7 +60,6 @@ def train_epoch(data_generator, optimizer, model, criterion, device,
         task = progress.add_task("[red]Training: ", total=nb_batches)
 
         for data, target in data_generator:
-
             data , target = data.to(device), target.to(device)
 
             # Training step
@@ -127,7 +126,6 @@ def parse_arguments():
 
 
 def main():
-
     args = parse_arguments()
     unique_name = args.unique_name
 
@@ -138,12 +136,10 @@ def main():
     # Device configuration
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-
     torch.autograd.set_detect_anomaly(True)
 
-    run_starttime = datetime.now().strftime("%d%m%y_%H%M")
-
     # Create the logging file
+    run_starttime = datetime.now().strftime("%d%m%y_%H%M")
     log_file = os.path.join("./logs", "{}_{}_logs.txt".format(run_starttime, unique_name))
     logger = open(log_file, "w")
 
@@ -158,9 +154,10 @@ def main():
     # Logging
     write_and_print(logger, f"Project: {run_starttime}_{args.unique_name}")
     write_and_print(logger, f"Training started: {datetime.now().strftime('%d%m%y_%H%M%S')}")
+    write_and_print(logger, f"No. of Epochs: {args.epochs}")
     write_and_print(logger, f"Unique Name: {run_starttime}_{args.unique_name}")
     write_and_print(logger, f"Device used: {device}")
-    write_and_print(logger, f"Augmentations used : {args.use_augmentations}")
+    write_and_print(logger, f"Augmentations used: {args.use_augmentations}")
 
     # Load dataset splits
     dataset = seldDatabase(feat_label_dir=args.feat_label_dir)
@@ -205,15 +202,15 @@ def main():
     write_and_print(logger, f"Training dataloader: {n_batches} batches (batch size: {args.batch_size})")
 
     # Deciding on model architecture
-    if "resnet" in args.model: 
+    if "resnet" in args.model.lower(): 
         model = ResNet(in_feat_shape=data_in,
                        out_feat_shape=data_out,
                        use_dsc=args.use_dsc, btn_dsc=args.use_btndsc,
                        lightweight=args.lightweight).to(device)
         write_and_print(logger, "Using ResNet-GRU!")
-        write_and_print(logger, f"Using BTNDSC {args.use_btndsc}")
-        write_and_print(logger, f"Using DSC {args.use_dsc}")
-        write_and_print(logger, f"Using Lightweight {args.lightweight}")
+        write_and_print(logger, f"BTNDSC:      {args.use_btndsc}")
+        write_and_print(logger, f"DSC:         {args.use_dsc}")
+        write_and_print(logger, f"Lightweight: {args.lightweight}")
 
     else:
         model = SELDNet(in_feat_shape=data_in,
@@ -236,18 +233,14 @@ def main():
         step_scheduler = CosineWarmup_StepScheduler(optimizer, total_steps=total_steps)
         print("Cosine Annealing w/ Warmup Step Scheduler is used!\nTotal Number of Steps : {}".format(total_steps))
     elif args.sched == "batch":
-        batch_scheduler = CustomTriPhaseScheduler(optimizer, peak_lr=args.learning_rate)
+        batch_scheduler = CustomTriPhaseScheduler(optimizer, total_epochs=args.epochs, peak_lr=args.learning_rate)
         print("Custom Tri-Phase Scheduler used!")
     else:
         batch_scheduler = DecayScheduler(optimizer)
         print("Batch Decay Scheduler used!")
 
-    optimizer.zero_grad()
-    optimizer.step()
-
     # Defining the loss function to be used, which is dependent on our output format
     criterion = nn.MSELoss()
-
 
     try:
         best_er, best_f1, best_le, best_lr, best_seld, best_epoch = 9999, 0., 180., 0., 9999, 0
@@ -273,17 +266,21 @@ def main():
                 best_epoch = epoch_cnt
             val_time = time.time() - start_time
 
+            # Get the current learning rate from the optimizer
+            current_lr = optimizer.param_groups[0]['lr']
+
             # ---------------------------------------------------------------------
             # LOGGING METRICS AND VARIABLES
             # ---------------------------------------------------------------------
-            # Print stats
             write_and_print(logger, 
                 'epoch: {}, time: {:0.2f}/{:0.2f}, '
                 'train_loss: {:0.4f}, val_loss: {:0.4f}, '
-                'ER/F1/LE/LR/SELD: {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.3f}'.format(
+                'ER/F1/LE/LR/SELD: {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.3f}, '
+                'LR: {:.6f}'.format(
                     epoch_cnt, train_time, val_time,
                     train_loss, val_loss,
-                    ER, F, LE, LR, seld_err)
+                    ER, F, LE, LR, seld_err,
+                    current_lr)
             )
 
     except KeyboardInterrupt:

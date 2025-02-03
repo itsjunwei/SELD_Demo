@@ -8,7 +8,6 @@ Note: there are two frame rates:
 from rich.progress import Progress
 import os
 from typing import List
-import pickle
 
 import numpy as np
 import torch
@@ -125,6 +124,7 @@ class seldDatabase:
         accdoa_target_list = []
         feature_idxes_list = []
         gt_idxes_list = []
+
         with Progress(transient=True) as progress:
             task = progress.add_task("[cyan]Loading files", total=len(split_filenames))
 
