@@ -147,7 +147,7 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
     azi = azi * sed
 
     # Put angles in [0, 360):
-    azi[azi < 0] += 360.0
+    # azi[azi < 0] += 360.0
 
     converted_output = np.concatenate((sed, azi), axis=-1)
     return converted_output
@@ -271,7 +271,7 @@ def infer_audio(ort_sess):
 
     # Feature extraction
     feat_start = time.time()
-    features = extract_salsalite(audio_data) # Shape of (7, 81, 191)
+    features = extract_salsalite(audio_data, normalize=False) # Shape of (7, 81, 191)
     features = features[:, :-1, :]
     tracking_feature_ex.append(time.time() - feat_start)
 
@@ -285,12 +285,12 @@ def infer_audio(ort_sess):
     # Basic prediction post-processing functions
     process_start = time.time()
     prediction = convert_output(prediction[0])
-    # avg_predicion = np.mean(prediction, axis=0)
-    # sed = avg_predicion[:3].astype(int)
-    # doa = avg_predicion[3:].astype(int)
-    # doa = sed * doa
-    # outprint = np.concatenate((sed, doa))
-    print("[{}] - {}".format(record_time, prediction))
+    avg_predicion = np.mean(prediction, axis=0)
+    sed = avg_predicion[:3].astype(int)
+    doa = avg_predicion[3:].astype(int)
+    doa = sed * doa
+    outprint = np.concatenate((sed, doa))
+    print("[{}] - {}".format(record_time, outprint))
     tracking_processing.append(time.time()-process_start)
 
 
