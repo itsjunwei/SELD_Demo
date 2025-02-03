@@ -124,6 +124,57 @@ class DecayScheduler(_LRScheduler):
             # Apply decay to each base learning rate, ensuring it doesn't go below min_lr
             return [max(base_lr * current_decay, self.min_lr) for base_lr in self.base_lrs]
 
+
+class CustomTriPhaseScheduler(_LRScheduler):
+    """
+    Custom learning rate scheduler with three phases:
+
+    1. Ramp-Up: For the first 5% of total epochs, the learning rate increases linearly
+       from min_lr to peak_lr.
+    2. Plateau: For the next 70% of epochs, the learning rate remains constant at peak_lr.
+    3. Ramp-Down: For the final 25% of epochs, the learning rate decreases linearly
+       from peak_lr to min_lr.
+
+    The learning rate is updated on an epoch-by-epoch basis.
+
+    Args:
+        optimizer (Optimizer): Wrapped optimizer.
+        total_epochs (int): Total number of epochs for training.
+        min_lr (float): The minimum learning rate (used at the start and end).
+        peak_lr (float): The peak learning rate reached after the ramp-up phase.
+        last_epoch (int, optional): The index of the last epoch. Default is -1.
+    """
+    def __init__(self, optimizer, total_epochs, min_lr=1e-5, peak_lr=1e-3, last_epoch=-1):
+        self.total_epochs = total_epochs
+        self.min_lr = min_lr
+        self.peak_lr = peak_lr
+
+        # Calculate number of epochs for each phase
+        self.ramp_up_epochs = max(1, int(total_epochs * 0.05))
+        self.plateau_epochs = int(total_epochs * 0.70)
+        self.ramp_down_epochs = total_epochs - self.ramp_up_epochs - self.plateau_epochs
+
+        super(CustomTriPhaseScheduler, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        current_epoch = self.last_epoch + 1
+        
+        if current_epoch <= self.ramp_up_epochs:
+            # Phase 1: Ramp-Up (linear increase)
+            lr = self.min_lr + (self.peak_lr - self.min_lr) * (current_epoch / self.ramp_up_epochs)
+        elif current_epoch <= self.ramp_up_epochs + self.plateau_epochs:
+            # Phase 2: Plateau
+            lr = self.peak_lr
+        else:
+            # Phase 3: Ramp-Down (linear decrease)
+            t = current_epoch - (self.ramp_up_epochs + self.plateau_epochs)
+            fraction = t / self.ramp_down_epochs
+            lr = self.peak_lr - (self.peak_lr - self.min_lr) * fraction
+
+        # Return the same learning rate for all parameter groups
+        return [lr for _ in self.base_lrs]
+
+
 # --------------------------------------------------------------------------
 # Misc Utility Functions
 # --------------------------------------------------------------------------

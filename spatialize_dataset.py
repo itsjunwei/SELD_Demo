@@ -519,9 +519,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 720
+            n_tracks = 720 * 3
         elif split == "test":
-            n_tracks = 120
+            n_tracks = 120 * 3
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 

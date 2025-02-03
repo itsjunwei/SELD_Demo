@@ -245,8 +245,8 @@ def main():
     if use_augmentations:
         training_transforms = ComposeTransformNp([
             RandomShiftUpDownNp(freq_shift_range=10),
-            # CompositeCutout(image_aspect_ratio=80/191,
-            #                 n_zero_channels=3),
+            CompositeCutout(image_aspect_ratio=80/191,
+                            n_zero_channels=3),
         ])
     else:
         training_transforms = None
@@ -290,24 +290,6 @@ def main():
     write_and_print(logger, 'FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out)) # Get input and output shape sizes
     print("Number of params : {:.3f}M".format(count_parameters(model)/(10**6)))
 
-
-    # # Define weight decay settings (exclude bias and normalization layers)
-    # print("Training the model for a total of : {} epochs.".format(nb_epoch))
-    # no_decay = ['bias', 'LayerNorm.weight']
-    # optimizer_grouped_parameters = [
-    #     {
-    #         'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-    #         'weight_decay': 1e-4
-    #     },
-    #     {
-    #         'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-    #         'weight_decay': 0.0
-    #     }
-    # ]
-
-    # optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    # print("Using Adam with Weight Decay optimizer")
-
     # Adam Optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
@@ -322,10 +304,10 @@ def main():
         step_scheduler = CosineWarmup_StepScheduler(optimizer, total_steps=total_steps)
         print("Cosine Annealing w/ Warmup Step Scheduler is used!\nTotal Number of Steps : {}".format(total_steps))
     elif args.sched == "batch":
-        batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
-        print("Batch Decay Scheduler used!")
+        batch_scheduler = CustomTriPhaseScheduler(optimizer, peak_lr=args.learning_rate)
+        print("Custom Tri-Phase Scheduler used!")
     else:
-        batch_scheduler = DecayScheduler(optimizer, min_lr=args.learning_rate)
+        batch_scheduler = DecayScheduler(optimizer)
         print("Batch Decay Scheduler used!")
 
     optimizer.zero_grad()
