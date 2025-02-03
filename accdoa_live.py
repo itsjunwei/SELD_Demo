@@ -192,7 +192,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/300125_1418_btn_dsc_block_large_100epochs_aug_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/020225_2102_dsc_block_demolight_aug_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
@@ -267,7 +267,7 @@ def infer_audio(ort_sess):
         None
     """
 
-    global data_queue, moving_sed, moving_doa, recent_rms, b, a, filter_states
+    global data_queue
 
     # Wait until there is something in the buffer queue
     while len(data_queue) == 0:

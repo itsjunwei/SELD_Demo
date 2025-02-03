@@ -511,7 +511,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_demo"
+    output_dir = "./output_data"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
@@ -519,9 +519,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 720
+            n_tracks = 960
         elif split == "test":
-            n_tracks = 120
+            n_tracks = 80
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -553,13 +553,13 @@ if __name__ == "__main__":
                     out_audio_path_4ch=output_4ch_wav,
                     out_csv_path=output_csv,
                     sr=24000,
-                    segment_length=5.0,   # 1 minute
-                    num_events=2,
-                    snr_range_db=(10, 30),
+                    segment_length=15.0,   # 1 minute
+                    num_events=4,
+                    snr_range_db=(5, 30),
                     max_polyphony=2,
                     time_resolution=0.1,  # 100 ms frames
                     possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
-                    min_event_length=1.0,
-                    max_event_length=3.0,
-                    use_500ms_blocks=True
+                    min_event_length=3.0,
+                    max_event_length=5.0,
+                    use_500ms_blocks=False
                 )

@@ -145,7 +145,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_demo5"
+    output_dir = "./output_data"
     feat_dir = output_dir.replace("output_data", "feat_label")
     fs = 24000
     label_rate = 10
