@@ -1,5 +1,4 @@
 import numpy as np
-import torch.backends
 from time import gmtime, strftime
 import torch
 from datetime import datetime
@@ -196,34 +195,30 @@ def write_and_print(logger, out_string):
         print(out_string, flush=True)
     except:
         print(datetime.now().strftime("%d%m%y_%H%M%S"))
-        
+
+
 def wraparound_azimuth_diff_deg(az1, az2):
     """
     Compute absolute difference between two azimuth angles in [0..360],
     taking into account wrap-around. Returns a value in [0..180].
     """
     diff = np.abs(az1 - az2) % 360
-    diff = np.minimum(diff, 360 - diff)
-    return diff
+    return np.minimum(diff, 360 - diff)
 
 
 def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
-    
-    predictions = predictions.detach().cpu().numpy()
 
     # --------------------------------------------------------------------------
     # 1) Flatten from (60, 10, 6) to (600, 6)
     # --------------------------------------------------------------------------
-    def reshape_3Dto2D(A):
-        return A.reshape(A.shape[0] * A.shape[1], A.shape[2])
-
+    predictions = predictions.detach().cpu().numpy()
     predictions = reshape_3Dto2D(predictions)  # shape -> (600, 6)
-    
+
     # --------------------------------------------------------------------------
     # 2) Separate x and y for each of n_classes
     # --------------------------------------------------------------------------
     pred_x , pred_y = predictions[:, :n_classes] ,  predictions[:, n_classes:]
-    
+
     # --------------------------------------------------------------------------
     # 3) SED mask : "Active" if sqrt(x^2 + y^2) > some_threshold
     # --------------------------------------------------------------------------
@@ -235,10 +230,10 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
     # --------------------------------------------------------------------------
     azi = np.arctan2(pred_y, pred_x) * 180.0 / np.pi   # shape (600, 3)
     azi = azi * sed
-    
+
     # Put angles in [0, 360):
     azi[azi < 0] += 360.0
-    
+
     converted_output = np.concatenate((sed, azi), axis=-1)
     return converted_output
 
@@ -331,7 +326,6 @@ class SELDMetricsAzimuth:
         # 3) Binarize predicted SED
         pred_sed_bin = (pred_sed > self.sed_threshold).astype(np.int32)
         gt_sed_bin   = gt_sed.astype(np.int32)
-
         batch_size = gt.shape[0]
 
         for i in range(batch_size):

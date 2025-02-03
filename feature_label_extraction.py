@@ -5,32 +5,34 @@ from sklearn import preprocessing
 
 
 def extract_salsalite(audio_data, normalize=True):
+    """
+    Extract SALSA-Lite features from multi-channel audio.
+    
+    Parameters:
+      audio_data : np.ndarray
+          Input audio array of shape (n_mics, n_samples).
+      normalize : bool
+          If True, perform Z-score normalization of the log-power spectrogram
+          per frequency bin (over mics and frames).
+    
+    Returns:
+      audio_feature : np.ndarray
+          Concatenated feature array of shape ((n_mics + n_mics-1), n_frames, n_cropped_bins)
+          containing normalized log-power spectrograms (for each mic) and spatial phase features.
+    """
 
     fs = 24000
     n_fft = 512
     hop_length = 300
 
-    # Doa info
+    # DOA parameters
     n_mics = 4
     fmin_doa = 50
-    fmax_doa = 4000
-    
-    """
-    For the demo, fmax_doa = 4kHz, fs = 48kHz, n_fft = 512, hop = 300
-    This results in the following:
-        n_bins      = 257
-        lower_bin   = 1
-        upper_bin   = 42
-        cutoff_bin  = 96 
-        logspecs -> 95 bins total
-        phasespecs -> 41 bins total
-        
-    Since these are all fixed, can we just put them into the config.yml instead
-    and just read them from there and avoid these calculations
-    """
-    d_max = 49 / 1000 # Maximum distance between two microphones
-    f_alias = 343/(2*d_max) # Spatial aliasing frequency
+    fmax_doa = 4000  # initial upper bound for DOA
+    d_max = 49 / 1000  # Maximum distance between two microphones (meters)
+    f_alias = 343 / (2 * d_max)  # Spatial aliasing frequency
     fmax_doa = np.min((fmax_doa, fs // 2, f_alias))  
+    
     n_bins = n_fft // 2 + 1
     lower_bin = int(np.floor(fmin_doa * n_fft / float(fs)))
     upper_bin = int(np.floor(fmax_doa * n_fft / float(fs)))
@@ -47,7 +49,7 @@ def extract_salsalite(audio_data, normalize=True):
     freq_vector = np.arange(n_bins)
     freq_vector[0] = 1
     freq_vector = freq_vector[:, None, None]  # n_bins x 1 x 1
-    
+
     # Extract the features from the audio data
     log_specs = []
 
@@ -69,28 +71,28 @@ def extract_salsalite(audio_data, normalize=True):
         log_spec = np.expand_dims(log_spec, axis=0)
         log_specs.append(log_spec)
     log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
-    
+
     # Normalize Log Power Spectra if Requested
     if normalize:
-        # Z-score normalization per frequency bin across all frames and mics
-        mean = np.mean(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
-        std = np.std(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
-        std[std == 0] = 1  # Prevent division by zero
-        log_specs = (log_specs - mean) / std  # Normalized log_specs
+        # Compute mean and std over mics and frames (axes 0 and 1), leaving frequency dimension.
+        mean = np.mean(log_specs, axis=(0, 1), keepdims=True)  # shape: (1, 1, n_bins)
+        std = np.std(log_specs, axis=(0, 1), keepdims=True)    # shape: (1, 1, n_bins)
+        std[std == 0] = 1  # avoid division by zero
+        log_specs = (log_specs - mean) / std
 
     # Compute spatial feature
     phase_vector = np.angle(X[:, :, 1:] * np.conj(X[:, :, 0, None]))
     phase_vector = phase_vector / (delta * freq_vector)
     phase_vector = np.transpose(phase_vector, (2, 1, 0))  # (n_mics, n_frames, n_bins)
-    
+
     # Crop frequency
     log_specs = log_specs[:, :, lower_bin:cutoff_bin]
     phase_vector = phase_vector[:, :, lower_bin:cutoff_bin]
     phase_vector[:, :, upper_bin:] = 0
-    
+
     # Stack features
     audio_feature = np.concatenate((log_specs, phase_vector), axis=0)
-    
+
     return audio_feature
 
 def load_output_format_file(file):
@@ -109,21 +111,23 @@ def load_output_format_file(file):
 
 def convert_output_format_polar_to_cartesian(in_dict):
     out_dict = {}
-    for frame_cnt in in_dict.keys():
-        if frame_cnt not in out_dict:
-            out_dict[frame_cnt] = []
-            for tmp_val in in_dict[frame_cnt]:
-                # Convert azimuth from degrees to radians
-                azi_rad = tmp_val[1] * np.pi / 180.0
-
-                # x, y form a unit vector in 2D
-                x = np.cos(azi_rad)
-                y = np.sin(azi_rad)
-
-                out_dict[frame_cnt].append([tmp_val[0], x, y])
+    for frame_ind, events in in_dict.items():
+        out_dict[frame_ind] = []
+        for event in events:
+            # Convert azimuth from degrees to radians
+            azi_rad = event[1] * np.pi / 180.0
+            x = np.cos(azi_rad)
+            y = np.sin(azi_rad)
+            out_dict[frame_ind].append([event[0], x, y])
     return out_dict
 
 def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
+    """
+    Constructs the label matrix for a file given the description dictionary.
+    
+    The label matrix has shape (nb_label_frames, 3*nb_unique_classes), where the columns
+    correspond to [SED, x, y] for each class.
+    """
 
     se_label = np.zeros((_nb_label_frames, _nb_unique_classes))
     x_label = np.zeros((_nb_label_frames, _nb_unique_classes))

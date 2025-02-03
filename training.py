@@ -17,14 +17,14 @@ import argparse
 
 
 def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
-    nb_train_batches, validation_loss = 0, 0.
+    nb_batches_processed, validation_loss = 0, 0.
     model.eval()
 
     # Create an instance of the aggregator
     seld_metric = SELDMetricsAzimuth(n_classes=3, azimuth_threshold=20, sed_threshold=0.5)
 
     with Progress(transient=True) as progress:
-        task = progress.add_task("[green]Validation : ", total=nb_batches)
+        task = progress.add_task("[green]Validation: ", total=nb_batches)
 
         with torch.no_grad():
             for data, target in data_generator:
@@ -34,17 +34,14 @@ def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
                 loss = criterion(output, target)
 
                 validation_loss += loss.item()
-                nb_train_batches += 1
+                nb_batches_processed += 1
 
                 # Update aggregator with this batch’s ground truth + predictions
-                target = convert_output(target)
-                output = convert_output(output)
-
-                seld_metric.update(gt=target, pred=output)
+                seld_metric.update(gt=convert_output(target), pred=convert_output(output))
 
                 progress.update(task, advance=1)
 
-    validation_loss /= nb_train_batches
+    validation_loss /= nb_batches_processed
     # Compute the final metrics across all batches
     ER, F, LE, LR = seld_metric.compute()
 
@@ -59,7 +56,7 @@ def train_epoch(data_generator, optimizer, model, criterion, device,
     model.train()
 
     with Progress(transient=True) as progress:
-        task = progress.add_task("[red]Training : ", total=nb_batches)
+        task = progress.add_task("[red]Training: ", total=nb_batches)
 
         for data, target in data_generator:
 
@@ -83,12 +80,12 @@ def train_epoch(data_generator, optimizer, model, criterion, device,
             progress.update(task, advance=1)
 
             # For step based schedulers
-            if step_scheduler is not None : step_scheduler.step()
+            if step_scheduler is not None: step_scheduler.step()
 
     train_loss /= nb_train_batches
 
     # For epoch based schedulers
-    if batch_scheduler is not None : batch_scheduler.step()
+    if batch_scheduler is not None: batch_scheduler.step()
 
     del data, target, output
     torch.cuda.empty_cache()
@@ -99,102 +96,31 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Training Script with Argparse Integration")
 
     # Experiment Identification
-    parser.add_argument(
-        "--unique_name",
-        type=str,
-        default="demo",
-        help="Unique name for the experiment/run."
-    )
+    parser.add_argument("--unique_name", type=str, default="demo", help="Unique name for the experiment/run.")
 
     # Model Configurations
-    parser.add_argument(
-        "--use_dsc",
-        action="store_true",
-        help="Use Depthwise Separable Convolutions"
-    )
-
-    parser.add_argument(
-        "--use_btndsc",
-        action="store_true",
-        help="Use Bottleneck ResBlks. Depthwise Separable Convolutions enabled by default."
-    )
-
-    parser.add_argument(
-        "--lightweight",
-        action="store_true",
-        help="Use the lightweight version of the models"
-    )
+    parser.add_argument("--use_dsc", action="store_true", help="Use Depthwise Separable Convolutions")
+    parser.add_argument("--use_btndsc", action="store_true",
+                        help="Use Bottleneck ResBlks. Depthwise Separable Convolutions enabled by default.")
+    parser.add_argument("--lightweight", action="store_true", help="Use the lightweight version of the models")
 
     # Directories
-    parser.add_argument(
-        "--log_dir",
-        type=str,
-        default="./logs",
-        help="Directory to save log files."
-    )
-    parser.add_argument(
-        "--model_dir",
-        type=str,
-        default="./model_weights",
-        help="Directory to save model weights."
-    )
+    parser.add_argument("--log_dir", type=str, default="./logs", help="Directory to save log files.")
+    parser.add_argument("--model_dir", type=str, default="./model_weights", help="Directory to save model weights.")
 
     # Training Hyperparameters
-    parser.add_argument(
-        "--epochs",
-        type=int,
-        default=50,
-        help="Number of training epochs."
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="Batch size for training."
-    )
-    parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=1e-3,
-        help="Learning rate for the optimizer."
-    )
-    parser.add_argument(
-        "--weight_decay",
-        type=float,
-        default=1e-4,
-        help="Weight decay (L2 regularization) factor."
-    )
-    parser.add_argument(
-        "--n_workers",
-        type=int,
-        default=0,
-        help="Number of worker threads for data loading."
-    )
-    parser.add_argument(
-        "--sched",
-        type=str,
-        default="batch",
-        help="Type of learning rate scheduler used (batch/step)."
-    )
-    parser.add_argument(
-        "--feat_label_dir",
-        type=str,
-        default="./feat_label",
-        help="Directory where all the features and labels are stored."
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="resnet",
-        help="Model Choice"
-    )
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning rate for the optimizer.")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay (L2 regularization) factor.")
+    parser.add_argument("--n_workers", type=int, default=0, help="Number of worker threads for data loading.")
+    parser.add_argument("--sched", type=str, default="batch", help="Type of learning rate scheduler used (batch/step).")
+    parser.add_argument("--feat_label_dir", type=str, default="./feat_label",
+                        help="Directory where all the features and labels are stored.")
+    parser.add_argument("--model", type=str, default="resnet", help="Model Choice")
 
     # Data Augmentation
-    parser.add_argument(
-        "--use_augmentations",
-        action="store_true",
-        help="Enable data augmentations during training."
-    )
+    parser.add_argument("--use_augmentations", action="store_true", help="Enable data augmentations during training.")
 
     return parser.parse_args()
 
@@ -204,7 +130,7 @@ def main():
     args = parse_arguments()
     unique_name = args.unique_name
 
-    # Make the log and model directories
+    # Create necessary directories
     os.makedirs(args.log_dir, exist_ok=True)
     os.makedirs(args.model_dir, exist_ok=True)
 
@@ -220,27 +146,28 @@ def main():
     log_file = os.path.join("./logs", "{}_{}_logs.txt".format(run_starttime, unique_name))
     logger = open(log_file, "w")
 
-    # Starting up the wandb logger
-    project_title = f"{run_starttime}_{args.unique_name}"
-    write_and_print(logger, project_title)
-
-
     # Training setup
     nb_epoch = args.epochs
     batch_size = args.batch_size
     n_workers = args.n_workers
 
-
     # Unique name for the run
     model_name = os.path.join(args.model_dir,'{}_{}_model.h5'.format(run_starttime, unique_name))
-    write_and_print(logger, out_string="Unique Name: {}_{}".format(run_starttime, unique_name))
-    write_and_print(logger, out_string="Training started : {}".format(datetime.now().strftime("%d%m%y_%H%M%S")))
 
+    # Logging
+    write_and_print(logger, f"Project: {run_starttime}_{args.unique_name}")
+    write_and_print(logger, f"Training started: {datetime.now().strftime('%d%m%y_%H%M%S')}")
+    write_and_print(logger, f"Unique Name: {run_starttime}_{args.unique_name}")
+    write_and_print(logger, f"Device used: {device}")
+    write_and_print(logger, f"Augmentations used : {args.use_augmentations}")
+
+    # Load dataset splits
     dataset = seldDatabase(feat_label_dir=args.feat_label_dir)
     train_data = dataset.get_split("train")
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
 
+    # Set up data augmentation if used
     use_augmentations = args.use_augmentations
     if use_augmentations:
         training_transforms = ComposeTransformNp([
@@ -254,10 +181,11 @@ def main():
     train_dataset = seldDataset(db_data=train_data, transform=training_transforms)
     test_dataset = seldDataset(db_data=test_data)
 
+    # Input/Output shapes
     sample_x, sample_y = train_dataset[0]
     data_in = sample_x.shape
     data_out = sample_y.shape
-    print("In shape: {}, Out shape: {}".format(data_in, data_out))
+    write_and_print(logger, f"FEATURES:\n\tdata_in: {data_in}\n\tdata_out: {data_out}")
 
 
     # Creating the dataloaders
@@ -273,7 +201,7 @@ def main():
 
     n_batches = len(training_dataloader)
     n_val_batches = len(test_dataloader)
-    print("Manual training dataloader created with {} batches using batch size of {}!".format(n_batches, batch_size))
+    write_and_print(logger, f"Training dataloader: {n_batches} batches (batch size: {args.batch_size})")
 
     # Deciding on model architecture
     if "resnet" in args.model: 
@@ -281,14 +209,16 @@ def main():
                        out_feat_shape=data_out,
                        use_dsc=args.use_dsc, btn_dsc=args.use_btndsc,
                        lightweight=args.lightweight).to(device)
-        print("Using ResNet-GRU!")
+        write_and_print(logger, "Using ResNet-GRU!")
+        write_and_print(logger, f"Using BTNDSC {args.use_btndsc}")
+        write_and_print(logger, f"Using DSC {args.use_dsc}")
+        write_and_print(logger, f"Using Lightweight {args.lightweight}")
+
     else:
         model = SELDNet(in_feat_shape=data_in,
                         out_feat_shape=data_out).to(device)
-        print("Using SELDNet for training")
-
-    write_and_print(logger, 'FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out)) # Get input and output shape sizes
-    print("Number of params : {:.3f}M".format(count_parameters(model)/(10**6)))
+        write_and_print(logger, "Using SELDNet for training")
+    write_and_print(logger, f"Number of params: {count_parameters(model)/1e6:.3f}M")
 
     # Adam Optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -297,6 +227,7 @@ def main():
     num_batches_per_epoch = len(training_dataloader)
     total_steps = nb_epoch * num_batches_per_epoch
 
+    # Decide scheduler based on argument
     step_scheduler = None
     batch_scheduler = None
 
@@ -315,10 +246,6 @@ def main():
 
     # Defining the loss function to be used, which is dependent on our output format
     criterion = nn.MSELoss()
-
-    # Misc. print statements for viewing the training configurations
-    write_and_print(logger, "Device used : {}".format(device))
-    write_and_print(logger, "Augmentations used : {}".format(use_augmentations))
 
 
     try:
