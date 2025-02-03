@@ -22,6 +22,7 @@ def measure_rms_multichannel(signal_4ch: np.ndarray) -> float:
     flattened = signal_4ch.reshape(-1)
     return np.sqrt(np.mean(flattened**2))
 
+
 def extract_random_segment(audio: np.ndarray,
                            sr: int,
                            segment_length: float) -> np.ndarray:
@@ -52,6 +53,7 @@ def extract_random_segment(audio: np.ndarray,
     end_sample = start_sample + int(round(segment_length * sr))
     return audio[start_sample:end_sample]
 
+
 def extract_random_segment_4ch(audio_4ch: np.ndarray,
                                sr: int,
                                segment_length: float = 60.0) -> np.ndarray:
@@ -69,54 +71,6 @@ def extract_random_segment_4ch(audio_4ch: np.ndarray,
     end_sample = start_sample + int(round(segment_length * sr))
     return audio_4ch[start_sample:end_sample, :]
 
-def place_events_on_timeline(
-    event_durations: list[float],
-    total_duration: float = 60.0,
-    max_polyphony: int = 2,
-    time_resolution: float = 0.1,
-    max_attempts_per_event: int = 1000
-) -> list[float]:
-    """
-    Place each event on a timeline quantized to `time_resolution` with up to `max_polyphony`.
-    Returns a list of start times (seconds). `None` if placement fails.
-    """
-    total_frames = int(np.floor(total_duration / time_resolution))
-    placed_intervals = []
-    start_times = []
-
-    for dur in event_durations:
-        placed = False
-        attempt_count = 0
-        event_frames = int(np.ceil(dur / time_resolution))
-
-        if event_frames > total_frames:
-            # can't place an event longer than the entire timeline
-            start_times.append(None)
-            continue
-
-        while not placed and attempt_count < max_attempts_per_event:
-            attempt_count += 1
-            start_frame = random.randint(0, total_frames - event_frames)
-            candidate_interval = (start_frame, start_frame + event_frames)
-
-            overlap_count = 0
-            for (s_frame, e_frame) in placed_intervals:
-                # Overlap check
-                if not (candidate_interval[1] <= s_frame or candidate_interval[0] >= e_frame):
-                    overlap_count += 1
-                    if overlap_count >= max_polyphony:
-                        break
-            
-            if overlap_count < max_polyphony:
-                placed_intervals.append(candidate_interval)
-                start_times.append(start_frame * time_resolution)
-                placed = True
-        
-        if not placed:
-            start_times.append(None)
-            print(f"Warning: Could not place event of duration {dur:.2f}s with polyphony={max_polyphony}. Skipping.")
-    
-    return start_times
 
 def convolve_mono_with_4ch_rir(event_mono: np.ndarray,
                                rir_4ch: np.ndarray) -> np.ndarray:
@@ -125,7 +79,7 @@ def convolve_mono_with_4ch_rir(event_mono: np.ndarray,
     """
     if rir_4ch.ndim != 2 or rir_4ch.shape[1] != 4:
         raise ValueError("rir_4ch must have shape (rir_samples, 4).")
-    
+
     out_channels = []
     for c in range(4):
         ch_ir = rir_4ch[:, c]
@@ -133,6 +87,7 @@ def convolve_mono_with_4ch_rir(event_mono: np.ndarray,
         out_channels.append(convolved)
     # shape: (n_samples, 4)
     return np.column_stack(out_channels)
+
 
 def mix_event_into_background_4ch(
     background_4ch: np.ndarray,
@@ -172,7 +127,7 @@ def place_events_class_based(
       - No more than 2 events overlap at any time.
       - Overlapping events must be from different classes
         (i.e., never allow two events of the same class in the same frame).
-    
+
     This function returns a list of start times (seconds), or None if an event
     could not be placed without violating constraints.
 
@@ -535,10 +490,7 @@ def create_spatialized_mix_from_class_audio(
 
     # Prevent clipping
     peak = np.max(np.abs(final_mix_4ch))
-    if peak > 1e-12:  # avoid division-by-zero
-        desired_peak = 0.8
-        scale_factor = desired_peak / peak
-        final_mix_4ch *= scale_factor
+    final_mix_4ch = final_mix_4ch / peak
 
     assert sr_amb == sr_cls == sr_srir, "Sampling rates are off : {}/{}/{}".format(sr_amb, sr_cls, sr_srir)
 
@@ -559,7 +511,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_demo"
+    output_dir = "./output_data_block_demo5"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
@@ -567,9 +519,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 60
+            n_tracks = 720
         elif split == "test":
-            n_tracks = 10
+            n_tracks = 120
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -601,13 +553,13 @@ if __name__ == "__main__":
                     out_audio_path_4ch=output_4ch_wav,
                     out_csv_path=output_csv,
                     sr=24000,
-                    segment_length=60.0,   # 1 minute
-                    num_events=12,
+                    segment_length=5.0,   # 1 minute
+                    num_events=2,
                     snr_range_db=(10, 30),
                     max_polyphony=2,
                     time_resolution=0.1,  # 100 ms frames
                     possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
-                    min_event_length=2.0,
-                    max_event_length=5.0,
+                    min_event_length=1.0,
+                    max_event_length=3.0,
                     use_500ms_blocks=True
                 )
