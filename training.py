@@ -14,6 +14,7 @@ from rich.progress import Progress
 from models import ResNet, SELDNet
 from utilities import *
 import argparse
+from inference import inference
 
 
 def test_epoch(data_generator,  model, criterion, device, nb_batches=1000):
@@ -287,6 +288,15 @@ def main():
 
     except KeyboardInterrupt:
         write_and_print(logger, "Training ended prematurely.")
+
+    # Getting some classwise stats
+    model.load_state_dict(torch.load(model_name, map_location='cpu'))
+    er, f1, le, lr = inference(test_dataloader, 
+                                model=model, 
+                                device=device, 
+                                nb_batches=len(test_dataloader))
+    e_seld = (er + (1-f1) + (le/180) + (1-lr))/4
+    print("Best ER/F1/LE/LR/SELD: {:.2f}/{:.2f}/{:.2f}/{:.2f}/{:.3f}".format(er, f1, le, lr, e_seld))
 
     # Final Output Stats
     write_and_print(logger, 

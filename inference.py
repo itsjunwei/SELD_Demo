@@ -15,7 +15,7 @@ def inference(data_generator,  model, device, nb_batches=1000, sed_threshold=0.5
     seld_metric = SELDMetricsAzimuth(n_classes=3, azimuth_threshold=20, sed_threshold=sed_threshold, out_class=True)
 
     with Progress(transient=True) as progress:
-        task = progress.add_task("[green]Validation : ", total=nb_batches)
+        task = progress.add_task("[green]Inference: ", total=nb_batches)
 
         with torch.no_grad():
             for data, target in data_generator:

@@ -511,7 +511,7 @@ def create_spatialized_mix_from_class_audio(
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_block_demo5"
+    output_dir = "./output_data_block_demo"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
 
