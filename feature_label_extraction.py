@@ -136,7 +136,6 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
     for frame_ind, active_event_list in _desc_file.items():
         if frame_ind < _nb_label_frames:
             for active_event in active_event_list:
-                #print(active_event)
                 se_label[frame_ind, active_event[0]] = 1
                 x_label[frame_ind, active_event[0]] = active_event[1]
                 y_label[frame_ind, active_event[0]] = active_event[2]
@@ -148,7 +147,6 @@ if __name__ == "__main__":
 
     output_dir = "./output_data_block_demo5"
     feat_dir = output_dir.replace("output_data", "feat_label")
-    # feat_dir = "./feat_label_block_silence"
     fs = 24000
     label_rate = 10
 
