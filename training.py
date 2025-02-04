@@ -110,7 +110,7 @@ def parse_arguments():
 
     # Training Hyperparameters
     parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for training.")
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning rate for the optimizer.")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay (L2 regularization) factor.")
     parser.add_argument("--n_workers", type=int, default=0, help="Number of worker threads for data loading.")
