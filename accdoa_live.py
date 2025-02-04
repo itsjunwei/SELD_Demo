@@ -108,14 +108,7 @@ def extract_salsalite(audio_data, normalize=True):
 
 # Misc utility functions
 def to_numpy(tensor):
-    """Convert the feature tensor into np.ndarray format for the ONNX model to run 
-
-    Inputs
-        tensor (PyTorch Tensor) : input PyTorch feature tensor of any shape 
-
-    Returns
-        tensor (PyTorch Tensor) : The same tensor, but in np.ndarray format to input into ONNX model
-    """
+    """Convert a PyTorch tensor to a NumPy array."""
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 
@@ -236,6 +229,8 @@ def infer_audio(ort_sess):
     all_data = data_queue.popleft()
     record_time = all_data[0] # No need copy for string data, apparently
     audio_data = all_data[1].copy() # Float data needs to be copied
+    peak = np.max(np.abs(audio_data))
+    audio_data = audio_data / peak
     audio_data = audio_data.reshape(-1,4).T
 
     # Feature extraction
