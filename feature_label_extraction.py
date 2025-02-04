@@ -72,7 +72,7 @@ def extract_salsalite(audio_data, normalize=True):
         log_specs.append(log_spec)
     log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
 
-    # Normalize Log Power Spectra if Requested
+    # Normalize Log Power Spectra
     if normalize:
         # Compute mean and std over mics and frames (axes 0 and 1), leaving frequency dimension.
         mean = np.mean(log_specs, axis=(0, 1), keepdims=True)  # shape: (1, 1, n_bins)

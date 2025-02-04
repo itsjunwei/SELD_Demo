@@ -82,13 +82,13 @@ def extract_salsalite(audio_data, normalize=True):
     # Convert List to NumPy Array
     log_specs = np.concatenate(log_specs, axis=0)  # (n_mics, n_frames, n_bins)
 
-    # Normalize Log Power Spectra if Requested
+    # Normalize Log Power Spectra
     if normalize:
-        # Z-score normalization per frequency bin across all frames and mics
-        mean = np.mean(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
-        std = np.std(log_specs, axis=(0, 2), keepdims=True)  # Shape: (n_mics, 1, n_bins)
-        std[std == 0] = 1  # Prevent division by zero
-        log_specs = (log_specs - mean) / std  # Normalized log_specs
+        # Compute mean and std over mics and frames (axes 0 and 1), leaving frequency dimension.
+        mean = np.mean(log_specs, axis=(0, 1), keepdims=True)  # shape: (1, 1, n_bins)
+        std = np.std(log_specs, axis=(0, 1), keepdims=True)    # shape: (1, 1, n_bins)
+        std[std == 0] = 1  # avoid division by zero
+        log_specs = (log_specs - mean) / std
 
     # Compute spatial feature
     phase_vector = np.angle(X[:, :, 1:] * np.conj(X[:, :, 0, None]))
@@ -153,7 +153,6 @@ def convert_output(predictions, n_classes = 3, sed_threshold=0.5):
     return converted_output
 
 
-
 # For testing
 extraction_time = []
 
@@ -164,9 +163,7 @@ warnings.filterwarnings('ignore')
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
-os.system('cls')
 print("Changing directory to : ", dname)
-print("Screen cleared!")
 gc.enable()
 gc.collect()
 n_classes = 3
@@ -175,7 +172,6 @@ n_classes = 3
 tracking_feature_ex = []
 tracking_model_inf = []
 tracking_processing = []
-
 
 # Setup onnxruntime
 sess_options = ort.SessionOptions()
@@ -187,7 +183,7 @@ input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
 CHUNK = 500
-FORMAT = pyaudio.paInt16
+FORMAT = pyaudio.paFloat32
 CHANNELS = 4
 RATE = 24000
 MAX_RECORDINGS = 48
@@ -211,17 +207,6 @@ lock = threading.Lock()
 
 # Function to record audio
 def record_audio(stream, stop_event):
-    """Define the data buffer queue outside of the function and call it globally.
-    This function is used to record audio data and push them to the 
-    buffer queue for another function to use for inference. 
-
-    Inputs:
-        stream (pyaudio.stream) : Stream class defined by PyAudio
-        stop_event (thread) : Thread to indicate whether this thread should continue running
-        
-    Returns:
-        None
-    """
 
     global data_queue # Bufer queue for all the data
 
@@ -229,8 +214,7 @@ def record_audio(stream, stop_event):
         try:
             # Read the data from the buffer as np.float32
             time_now = datetime.now()
-            buffer_int16 = np.frombuffer(stream.read(fpb, exception_on_overflow=False), dtype=np.int16)
-            buffer = buffer_int16.astype(np.float32)
+            buffer = np.frombuffer(stream.read(fpb, exception_on_overflow=False), dtype=np.float32)
 
             # Append the audio data and recording time into the buffer queues
             data_queue.append((time_now, buffer))
@@ -241,21 +225,6 @@ def record_audio(stream, stop_event):
 
 
 def infer_audio(ort_sess):
-    """Define the data buffer queue outside of the function. In fact, may not even need to 
-    append the recording time into the buffer if do not wish to keep track of time. It was
-    used to keep track of when the audio data was recorded and to make sure that the system
-    is inferring on the correct audio data in the queue.
-
-    This function is used to use an ONNXRUNTIME session in order to infer on the audio data
-    recorded. Potentially, this function can be modified to return the inference output itself
-    to pass to another function/system for post-processing.
-
-    Inputs:
-        ort_sess (onnxruntime session) : The onnxruntime session of our model for inference
-
-    Returns:
-        None
-    """
 
     global data_queue
 
@@ -271,7 +240,7 @@ def infer_audio(ort_sess):
 
     # Feature extraction
     feat_start = time.time()
-    features = extract_salsalite(audio_data, normalize=False) # Shape of (7, 81, 191)
+    features = extract_salsalite(audio_data, normalize=True) # Shape of (7, 81, 191)
     features = features[:, :-1, :]
     tracking_feature_ex.append(time.time() - feat_start)
 
@@ -330,7 +299,7 @@ if __name__ == "__main__":
 
     print("Feature Extraction ~ N({:.4f}, {:.4f})".format(np.mean(np.array(tracking_feature_ex)),
                                                           np.var(np.array(tracking_feature_ex))))
-    
+
     print("Model Inference ~ N({:.4f}, {:.4f})".format(np.mean(np.array(tracking_model_inf)),
                                                           np.var(np.array(tracking_model_inf))))
 

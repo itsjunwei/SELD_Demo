@@ -323,7 +323,6 @@ if __name__ == "__main__":
         elapsed_time = end_time - start_time
 
         # Convert elapsed_time to a human-readable format
-        # One minute or more: display in minutes and seconds
         hours = int(elapsed_time // 3600)
         remaining_time = elapsed_time % 3600
         minutes = int(remaining_time // 60)
