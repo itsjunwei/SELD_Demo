@@ -288,6 +288,7 @@ def main():
         write_and_print(logger, "Training ended prematurely.")
 
     # Getting some classwise stats
+    write_and_print(logger, "Best model saved at: {}".format(model_name))
     model.load_state_dict(torch.load(model_name, map_location='cpu'))
     er, f1, le, lr = inference(test_dataloader, 
                                 model=model, 

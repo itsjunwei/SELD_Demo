@@ -182,7 +182,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/030225_1553_btndsc_2fps_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/030225_0913_btndsc_2fps_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Global variables
