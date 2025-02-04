@@ -219,9 +219,21 @@ def main():
         write_and_print(logger, "Using SELDNet for training")
     write_and_print(logger, f"Number of params: {count_parameters(model)/1e6:.3f}M")
 
-    # Adam Optimizer
-    # optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    # Define weight decay settings (exclude bias and normalization layers)
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {
+            'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+            'weight_decay': args.weight_decay
+        },
+        {
+            'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+            'weight_decay': 0.0
+        }
+    ]
+
+    optimizer = optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    print("Using Adam with Weight Decay optimizer")
 
     # Now we set the learning rate scheduler
     num_batches_per_epoch = len(training_dataloader)

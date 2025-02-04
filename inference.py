@@ -6,7 +6,6 @@ from manual_dataset import *
 from rich.progress import Progress
 from models import ResNet
 from utilities import *
-import onnxruntime as ort
 
 # Misc utility functions
 def to_numpy(tensor):

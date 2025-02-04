@@ -33,7 +33,7 @@ except ImportError:
 #############################
 
 # Paths
-MODEL_WEIGHTS_NAME = '030225_0913_btndsc_2fps_model'
+MODEL_WEIGHTS_NAME = '040225_1607_dsc_2fps_20sec_model'
 H5_WEIGHTS_PATH = './model_weights/{}.h5'.format(MODEL_WEIGHTS_NAME)
 onnx_dir = "./onnx_models"
 os.makedirs(onnx_dir, exist_ok=True)
@@ -171,8 +171,8 @@ def main(args):
     # Instantiate the model
     model = ResNet(in_feat_shape=(7,80,191),
                    out_feat_shape=(2,6),
-                   btn_dsc=True,
-                   use_dsc=False,
+                   btn_dsc=False,
+                   use_dsc=True,
                    lightweight=False,
                    fps=2)
     print("Model architecture instantiated.")
