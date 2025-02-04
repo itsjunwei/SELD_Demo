@@ -114,7 +114,7 @@ def parse_arguments():
     parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning rate for the optimizer.")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay (L2 regularization) factor.")
     parser.add_argument("--n_workers", type=int, default=0, help="Number of worker threads for data loading.")
-    parser.add_argument("--sched", type=str, default="batch", help="Type of learning rate scheduler used (batch/step).")
+    parser.add_argument("--sched", type=str, default="decay", help="Type of learning rate scheduler used (batch/step).")
     parser.add_argument("--feat_label_dir", type=str, default="./feat_label",
                         help="Directory where all the features and labels are stored.")
     parser.add_argument("--model", type=str, default="resnet", help="Model Choice")
@@ -220,7 +220,8 @@ def main():
     write_and_print(logger, f"Number of params: {count_parameters(model)/1e6:.3f}M")
 
     # Adam Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    # optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     # Now we set the learning rate scheduler
     num_batches_per_epoch = len(training_dataloader)
