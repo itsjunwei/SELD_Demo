@@ -265,7 +265,7 @@ class SELDNet(nn.Module):
         
         self.cnn_filt_1 = ConvBlock(in_channels=in_feat_shape[0],
                                     out_channels=n_res_filters)
-        self.max_pool1 = nn.MaxPool2d((5,2))
+        self.max_pool1 = nn.MaxPool2d((2,2))
         self.cnn_dropout_1 = nn.Dropout2d(p=p_dropout)
         
         self.cnn_filt_2 = ConvBlock(in_channels=n_res_filters,
@@ -275,7 +275,7 @@ class SELDNet(nn.Module):
         
         self.cnn_filt_3 = ConvBlock(in_channels=n_res_filters,
                                     out_channels=n_res_filters)
-        self.max_pool3 = nn.MaxPool2d((2,2))
+        self.max_pool3 = nn.MaxPool2d((5,2))
         self.cnn_dropout_3 = nn.Dropout2d(p=p_dropout)
         
         self.gru_input_dim = n_res_filters * int(np.floor(in_feat_shape[-1]/8))
