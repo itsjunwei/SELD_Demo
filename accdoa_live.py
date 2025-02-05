@@ -126,8 +126,58 @@ def convert_output(predictions, n_classes=3, sed_threshold=0.5):
     return converted_output
 
 
-# Suppress numpy overflow warnings (e.g., during sigmoid operations)
-# warnings.filterwarnings('ignore')
+def convert_output_discrete(predictions, n_classes=3, sed_threshold=0.5):
+    """
+    Convert model output into SED mask and discrete DOA bins.
+    
+    Parameters:
+      predictions: numpy array of shape (T, F, 2*n_classes) with model outputs.
+      n_classes: number of sound event classes (default=3).
+      sed_threshold: threshold for determining if an event is active.
+    
+    Returns:
+      A numpy array of shape (N, 2*n_classes) where the first n_classes columns 
+      are the binary SED mask and the next n_classes columns are the discrete DOA values.
+      
+    The discrete DOA values are selected from:
+      [0, 20, 40, 60, 80, 100, -20, -40, -60, -80, -100]
+    """
+    # Flatten predictions: from (T, F, 2*n_classes) to (T*F, 2*n_classes)
+    predictions = predictions.reshape(-1, predictions.shape[-1])
+    
+    # Split predictions into x and y components.
+    pred_x = predictions[:, :n_classes]
+    pred_y = predictions[:, n_classes:]
+    
+    # Compute the magnitude per prediction (for each class).
+    magnitudes = np.sqrt(pred_x**2 + pred_y**2)
+    # SED mask: True if the magnitude exceeds the threshold.
+    sed = magnitudes > sed_threshold
+
+    # Compute the continuous azimuth (in degrees).
+    continuous_azi = np.arctan2(pred_y, pred_x) * (180.0 / np.pi)
+    # Zero-out angles for inactive predictions.
+    continuous_azi = continuous_azi * sed
+
+    # Define your discrete DOA bins.
+    discrete_bins = np.array([0, 20, 40, 60, 80, 100, -20, -40, -60, -80, -100], dtype=np.float32)
+
+    # For each continuous angle, find the closest discrete bin.
+    # We vectorize the operation:
+    #   continuous_azi has shape (N, n_classes), and we want to compare against
+    #   discrete_bins which has shape (11,). We compute the absolute difference along a new axis.
+    diffs = np.abs(continuous_azi[..., np.newaxis] - discrete_bins)
+    # Get the index of the nearest bin along the last axis.
+    bin_indices = np.argmin(diffs, axis=-1)
+    # Map the indices back to the discrete angle values.
+    discrete_azi = discrete_bins[bin_indices]
+
+    # Ensure that for inactive events (sed == False), we output a DOA of 0.
+    discrete_azi = discrete_azi * sed
+
+    # Concatenate the SED mask and the discrete DOA predictions along the last axis.
+    converted_output = np.concatenate((sed, discrete_azi), axis=-1)
+    return converted_output
 
 # Ensure the script working directory is the same as the script's location.
 abspath = os.path.abspath(__file__)
@@ -148,14 +198,14 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/040225_1607_dsc_2fps_20sec_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/050225_0111_dsc_2fps2sec_demoroom_aug_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Audio recording parameters.
 FORMAT = pyaudio.paFloat32
 CHANNELS = 4
 RATE = FS
-RECORD_SECONDS = 1
+RECORD_SECONDS = 0.5
 fpb = int(RATE * RECORD_SECONDS)  # Frames per buffer
 
 # Use Queue (from the standard library) for thread-safe communication.
@@ -163,7 +213,7 @@ MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
 # Create a rolling buffer (deque) to hold the last 10 seconds (10 buffers)
-rolling_audio = deque(maxlen=10)
+rolling_audio = deque(maxlen=4)
 
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
@@ -201,12 +251,16 @@ def infer_audio(ort_sess, data_queue):
     # Update rolling buffer with the new 1-second buffer.
     rolling_audio.append(audio_buffer)
 
+    # Ensure we have at least 1 second of audio (2 buffers) before processing.
+    if len(rolling_audio) < 2:
+        # Not enough audio for a full 1-second inference.
+        return
+
     # Concatenate the rolling buffers into one long array.
     # (If fewer than 10 buffers are available, it uses what is present.)
     rolling_combined = np.concatenate(list(rolling_audio))  # shape: (num_buffers*fpb,)
 
     # Compute the normalization factor from the rolling window.
-    # Here we compute the peak amplitude over the past 10 seconds.
     norm_factor = np.max(np.abs(rolling_combined))
     if norm_factor == 0:
         norm_factor = 1.0
@@ -232,7 +286,8 @@ def infer_audio(ort_sess, data_queue):
 
     # Post-processing
     process_start = time.time()
-    prediction = convert_output(prediction[0])
+    # prediction = convert_output(prediction[0])
+    prediction = convert_output_discrete(prediction[0])
     avg_prediction = np.mean(prediction, axis=0)
     sed = avg_prediction[:3].astype(int)
     doa = avg_prediction[3:].astype(int)

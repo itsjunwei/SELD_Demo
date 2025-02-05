@@ -642,7 +642,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 
 if __name__ == "__main__":
 
-    output_dir = "./output_data_2fps_2sec_demoroom"
+    output_dir = "./output_data_2fps_5sec_demoroom"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -655,9 +655,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 10800
+            n_tracks = 4320
         elif split == "test":
-            n_tracks = 1800
+            n_tracks = 720
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -689,14 +689,14 @@ if __name__ == "__main__":
                     out_audio_path_4ch=output_4ch_wav,
                     out_csv_path=output_csv,
                     sr=24000,
-                    segment_length=5.0,   # 1 minute
-                    num_events=2,
+                    segment_length=10.0,   # 1 minute
+                    num_events=4,
                     snr_range_db=(-5, 20),
                     max_polyphony=2,
                     time_resolution=0.5,  # 100 ms frames
                     possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
                     min_event_length=2.0,
-                    max_event_length=4.0,
+                    max_event_length=3.0,
                     use_500ms_blocks=True
                 )
 

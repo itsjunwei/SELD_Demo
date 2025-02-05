@@ -6,6 +6,7 @@ from manual_dataset import *
 from rich.progress import Progress
 from models import ResNet
 from utilities import *
+import onnxruntime as ort
 
 # Misc utility functions
 def to_numpy(tensor):
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # Get the test dataset
-    dataset = seldDatabase(feat_label_dir="./feat_label_2fps")
+    dataset = seldDatabase(feat_label_dir="./feat_label_2fps_2sec_demoroom")
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
     test_dataset = seldDataset(db_data=test_data)
@@ -89,7 +90,7 @@ if __name__ == "__main__":
                                  pin_memory=True, prefetch_factor=2)
     
     model_weight_loc = "./model_weights/030225_0913_btndsc_2fps_model.h5"
-    # model_weight_loc = './onnx_models/030225_0913_btndsc_2fps_model.onnx'
+    model_weight_loc = './onnx_models/040225_1558_btndsc_100epochs_2fps2sec_demoroom_model.onnx'
 
     if model_weight_loc.endswith(".h5"):
         # Loading model via PyTorch weights

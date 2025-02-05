@@ -33,7 +33,7 @@ except ImportError:
 #############################
 
 # Paths
-MODEL_WEIGHTS_NAME = '040225_1607_dsc_2fps_20sec_model'
+MODEL_WEIGHTS_NAME = '050225_0111_dsc_2fps2sec_demoroom_aug_model'
 H5_WEIGHTS_PATH = './model_weights/{}.h5'.format(MODEL_WEIGHTS_NAME)
 onnx_dir = "./onnx_models"
 os.makedirs(onnx_dir, exist_ok=True)
