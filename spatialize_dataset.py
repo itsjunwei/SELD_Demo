@@ -497,7 +497,7 @@ def create_spatialized_mix_from_class_audio(
     assert sr_amb == sr_cls == sr_srir, "Sampling rates are off : {}/{}/{}".format(sr_amb, sr_cls, sr_srir)
 
     sf.write(out_audio_path_4ch, final_mix_4ch, sr)
-    print(f"Created 4-channel mixture: {out_audio_path_4ch}")
+    # print(f"Created 4-channel mixture: {out_audio_path_4ch}")
 
     # ------------------------------
     # 8) Write CSV
@@ -508,7 +508,7 @@ def create_spatialized_mix_from_class_audio(
         for (frame_idx, label, angle) in frame_label_records:
             writer.writerow([frame_idx, label, angle])
 
-    print(f"Ground truth CSV saved to: {out_csv_path}")
+    # print(f"Ground truth CSV saved to: {out_csv_path}")
 
 
 ##############################################################################
@@ -641,8 +641,9 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 
 
 if __name__ == "__main__":
+    from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_demoroom"
+    output_dir = "./output_data_2fps_5sec_DRs"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -675,71 +676,78 @@ if __name__ == "__main__":
 
             csv_dir = os.path.join(output_dir, split, "metadata", room)
             os.makedirs(csv_dir, exist_ok=True)
+            
+            with Progress() as progress:
+                task = progress.add_task("[green]Mixing tracks for {}: ".format(split), total=n_tracks)
 
-            for ith_track in range(n_tracks):
-                ambience_file_4ch = random.choice(ambience_files)
+                for ith_track in range(n_tracks):
+                    ambience_file_4ch = random.choice(ambience_files)
 
-                output_4ch_wav = os.path.join(track_dir, "track_{}.wav".format(ith_track+1))
-                output_csv = os.path.join(csv_dir, "track_{}.csv".format(ith_track+1))
+                    output_4ch_wav = os.path.join(track_dir, "track_{}.wav".format(ith_track+1))
+                    output_csv = os.path.join(csv_dir, "track_{}.csv".format(ith_track+1))
 
-                create_spatialized_mix_from_class_audio(
-                    ambience_path_4ch=ambience_file_4ch,
-                    class_audio_paths_mono=class_audio_dict,
-                    srir_folder_4ch=srir_folder,
-                    out_audio_path_4ch=output_4ch_wav,
-                    out_csv_path=output_csv,
-                    sr=24000,
-                    segment_length=5.0,   # 1 minute
-                    num_events=2,
-                    snr_range_db=(-5, 20),
-                    max_polyphony=2,
-                    time_resolution=0.5,  # 100 ms frames
-                    possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
-                    min_event_length=2.0,
-                    max_event_length=3.0,
-                    use_500ms_blocks=True
-                )
+                    create_spatialized_mix_from_class_audio(
+                        ambience_path_4ch=ambience_file_4ch,
+                        class_audio_paths_mono=class_audio_dict,
+                        srir_folder_4ch=srir_folder,
+                        out_audio_path_4ch=output_4ch_wav,
+                        out_csv_path=output_csv,
+                        sr=24000,
+                        segment_length=5.0,   # 1 minute
+                        num_events=2,
+                        snr_range_db=(-5, 20),
+                        max_polyphony=2,
+                        time_resolution=0.5,  # 100 ms frames
+                        possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
+                        min_event_length=2.0,
+                        max_event_length=3.0,
+                        use_500ms_blocks=True
+                    )
+                    progress.update(task, advance=1)
 
     # Feature Extraction for the Spatialized Dataset
     feat_dir = output_dir.replace("output_data", "feat_label")
     fs = 24000
 
     for root, dirnames, filenames in os.walk(output_dir, topdown=True):
-        for filename in filenames:
-            if filename.endswith(".wav"):
+        with Progress() as progress:
+            task = progress.add_task("[red]Generating features: ", total=len(filenames))
+            for filename in filenames:
+                if filename.endswith(".wav"):
 
-                # Load the audio data
-                filepath = os.path.join(root, filename)
-                audio_data , _ = librosa.load(filepath, sr=fs, mono=False, dtype=np.float32)
+                    # Load the audio data
+                    filepath = os.path.join(root, filename)
+                    audio_data , _ = librosa.load(filepath, sr=fs, mono=False, dtype=np.float32)
 
-                # Determine the number of feature frames
-                nb_feat_frames = int(audio_data.shape[1] / 300.0)
-                nb_label_frames = int(audio_data.shape[1]/ fs * label_rate) # 10 fps
+                    # Determine the number of feature frames
+                    nb_feat_frames = int(audio_data.shape[1] / 300.0)
+                    nb_label_frames = int(audio_data.shape[1]/ fs * label_rate) # 10 fps
 
-                # Extract the SALSA-Lite features
-                _feat = extract_salsalite(audio_data=audio_data)
-                _feat = _feat[:, :nb_feat_frames, :]
+                    # Extract the SALSA-Lite features
+                    _feat = extract_salsalite(audio_data=audio_data)
+                    _feat = _feat[:, :nb_feat_frames, :]
 
-                # Create the new directory for the features
-                new_filepath = filepath.replace("output_data", "feat_label")
-                new_filedir = os.path.dirname(new_filepath)
-                os.makedirs(new_filedir, exist_ok=True)
+                    # Create the new directory for the features
+                    new_filepath = filepath.replace("output_data", "feat_label")
+                    new_filedir = os.path.dirname(new_filepath)
+                    os.makedirs(new_filedir, exist_ok=True)
 
-                new_feat_fname = new_filepath.replace(".wav", ".npy")
-                np.save(new_feat_fname, _feat)
+                    new_feat_fname = new_filepath.replace(".wav", ".npy")
+                    np.save(new_feat_fname, _feat)
 
-                # Now, we extract the labels
-                metadata_file = filepath.replace("tracks", "metadata").replace(".wav", ".csv")
-                desc_file_polar = load_output_format_file(metadata_file)
-                desc_file = convert_output_format_polar_to_cartesian(desc_file_polar)
-                accdoa_labels = get_labels_for_file(desc_file, nb_label_frames)
+                    # Now, we extract the labels
+                    metadata_file = filepath.replace("tracks", "metadata").replace(".wav", ".csv")
+                    desc_file_polar = load_output_format_file(metadata_file)
+                    desc_file = convert_output_format_polar_to_cartesian(desc_file_polar)
+                    accdoa_labels = get_labels_for_file(desc_file, nb_label_frames)
 
-                # Create the new directory for the metadata labels
-                new_metadata_filepath = metadata_file.replace("output_data", "feat_label")
-                os.makedirs(os.path.dirname(new_metadata_filepath), exist_ok=True)
+                    # Create the new directory for the metadata labels
+                    new_metadata_filepath = metadata_file.replace("output_data", "feat_label")
+                    os.makedirs(os.path.dirname(new_metadata_filepath), exist_ok=True)
 
-                new_label_fname = new_metadata_filepath.replace(".csv", ".npy")
-                np.save(new_label_fname, accdoa_labels)
+                    new_label_fname = new_metadata_filepath.replace(".csv", ".npy")
+                    np.save(new_label_fname, accdoa_labels)
 
-                # Verbose printing
-                print("{}: {}, {}".format(new_feat_fname, _feat.shape, accdoa_labels.shape))
+                    # Verbose printing
+                    progress.console.log(f"{new_feat_fname}: {_feat.shape}, {accdoa_labels.shape}")
+                    progress.update(task, advance=1)
