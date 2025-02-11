@@ -655,9 +655,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 4320 * 2
+            n_tracks = 720 * 24 # 24 hours
         elif split == "test":
-            n_tracks = 720 * 2
+            n_tracks = 720 * 4 # 4 hours
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -689,8 +689,8 @@ if __name__ == "__main__":
                     out_audio_path_4ch=output_4ch_wav,
                     out_csv_path=output_csv,
                     sr=24000,
-                    segment_length=10.0,   # 1 minute
-                    num_events=4,
+                    segment_length=5.0,   # 1 minute
+                    num_events=2,
                     snr_range_db=(-5, 20),
                     max_polyphony=2,
                     time_resolution=0.5,  # 100 ms frames
