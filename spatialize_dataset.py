@@ -643,7 +643,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 if __name__ == "__main__":
     from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_DRs"
+    output_dir = "./output_data_2fps_5sec_DR"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
