@@ -656,9 +656,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 720 * 24 # 24 hours
+            n_tracks = 720 * 30 # 30 hours
         elif split == "test":
-            n_tracks = 720 * 4 # 4 hours
+            n_tracks = 720 * 5 # 5 hours
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -695,7 +695,7 @@ if __name__ == "__main__":
                         sr=24000,
                         segment_length=5.0,   # 1 minute
                         num_events=2,
-                        snr_range_db=(-5, 20),
+                        snr_range_db=(-5, 35),
                         max_polyphony=2,
                         time_resolution=0.5,  # 100 ms frames
                         possible_angles=[0, 20, 40, 60, 80, 100, 260, 280, 300, 320, 340],
