@@ -392,14 +392,15 @@ class ResNet(nn.Module):
         # determining the bigru size
         gru_in = self.res_layers[-1]
         self.bigru = nn.GRU(input_size = gru_in, hidden_size = gru_size,
-                            num_layers = 2, batch_first=True, bidirectional=True, dropout=0.3)
+                            num_layers = 2, batch_first=True, bidirectional=False, dropout=0.3)
 
         # decoding layers
-        self.fc1 = nn.Linear(in_features=gru_size * 2,
-                             out_features=gru_size, bias=True)
+        inter_fc_size = int(gru_size // 2)
+        self.fc1 = nn.Linear(in_features=gru_size,
+                             out_features=inter_fc_size, bias=True)
         self.dropout1 = nn.Dropout(p=0.2)
         self.leaky = nn.LeakyReLU(inplace=True)
-        self.fc2 = nn.Linear(in_features=gru_size,
+        self.fc2 = nn.Linear(in_features=inter_fc_size,
                              out_features=out_feat_shape[-1], bias=True)
         self.dropout2 = nn.Dropout(p=0.2)
 
