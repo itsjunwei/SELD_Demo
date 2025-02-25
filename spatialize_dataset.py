@@ -446,7 +446,7 @@ def create_spatialized_mix_from_class_audio(
             angle_chosen = random.choice(possible_angles)
             srir_candidates = [
                 f for f in os.listdir(srir_folder_4ch)
-                if f.endswith(".wav") and str(angle_chosen) in f
+                if f.endswith(".wav") and f == f"{angle_chosen}.wav"
             ]
             if not srir_candidates:
                 print(f"No SRIR for angle {angle_chosen}, skip.")
@@ -643,7 +643,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 if __name__ == "__main__":
     from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_demoroom"
+    output_dir = "./output_data_2fps_5sec_DR"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -656,9 +656,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 720 * 12 # 12 hours
+            n_tracks = 720 * 6 # 12 hours
         elif split == "test":
-            n_tracks = 720 * 2 # 2 hours
+            n_tracks = 720 * 1 # 2 hours
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
@@ -695,11 +695,11 @@ if __name__ == "__main__":
                         sr=24000,
                         segment_length=5.0,     # Duration of each clip
                         num_events=2,
-                        snr_range_db=(-5, 35),
+                        snr_range_db=(5, 35),
                         max_polyphony=2,
                         time_resolution=0.5,  # 100 ms frames
                         possible_angles=[20, 60, 300, 340],
-                        min_event_length=2.0,
+                        min_event_length=1.0,
                         max_event_length=3.0,
                         use_500ms_blocks=True
                     )
