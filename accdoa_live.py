@@ -198,7 +198,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/050225_0111_dsc_2fps2sec_demoroom_aug_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/250225_1503_dsc_demo_aug_light_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Audio recording parameters.
@@ -288,9 +288,9 @@ def infer_audio(ort_sess, data_queue):
     process_start = time.time()
     # prediction = convert_output(prediction[0])
     prediction = convert_output_discrete(prediction[0])
-    avg_prediction = np.mean(prediction, axis=0)
-    sed = avg_prediction[:3].astype(int)
-    doa = avg_prediction[3:].astype(int)
+    wanted_pred = prediction[-1]
+    sed = wanted_pred[:3].astype(int)
+    doa = wanted_pred[3:].astype(int)
     doa = sed * doa
     outprint = np.concatenate((sed, doa))
     print(f"[{record_time}] - {outprint}")

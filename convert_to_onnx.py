@@ -33,7 +33,7 @@ except ImportError:
 #############################
 
 # Paths
-MODEL_WEIGHTS_NAME = '050225_0111_dsc_2fps2sec_demoroom_aug_model'
+MODEL_WEIGHTS_NAME = '250225_1503_dsc_demo_aug_light_model'
 H5_WEIGHTS_PATH = './model_weights/{}.h5'.format(MODEL_WEIGHTS_NAME)
 onnx_dir = "./onnx_models"
 os.makedirs(onnx_dir, exist_ok=True)
@@ -173,7 +173,7 @@ def main(args):
                    out_feat_shape=(2,6),
                    btn_dsc=False,
                    use_dsc=True,
-                   lightweight=False,
+                   lightweight=True,
                    fps=2)
     print("Model architecture instantiated.")
 

@@ -643,7 +643,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 if __name__ == "__main__":
     from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_DR"
+    output_dir = "./output_data_2fps_5sec"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -656,9 +656,9 @@ if __name__ == "__main__":
 
     for split in splits:
         if split == "train":
-            n_tracks = 720 * 6 # 12 hours
+            n_tracks = 720 * 12 # 12 hours
         elif split == "test":
-            n_tracks = 720 * 1 # 2 hours
+            n_tracks = 720 * 2 # 2 hours
 
         ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
