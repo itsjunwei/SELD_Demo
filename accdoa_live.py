@@ -198,7 +198,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/250225_1503_dsc_demo_aug_light_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/250225_1201_dsc_nwpu_aug_light_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Audio recording parameters.
@@ -213,7 +213,7 @@ MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
 # Create a rolling buffer (deque) to hold the last 10 seconds (10 buffers)
-rolling_audio = deque(maxlen=4)
+rolling_audio = deque(maxlen=10)
 
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,

@@ -90,13 +90,13 @@ if __name__ == "__main__":
                         help="List all available input devices and exit.")
     parser.add_argument('-f', '--file', type=str, default="output.wav",
                         help="Output WAV file name (default: output.wav)")
-    parser.add_argument('-d', '--duration', type=int, default=5,
-                        help="Recording duration in seconds (default: 5)")
+    parser.add_argument('-d', '--duration', type=int, default=600,
+                        help="Recording duration in seconds (default: 600)")
     parser.add_argument('-c', '--channels', type=int, default=4,
                         help="Number of audio channels.")
-    parser.add_argument('-r', '--rate', type=int, default=44100,
-                        help="Sampling rate in Hz (default: 44100)")
-    parser.add_argument('-k', '--chunk', type=int, default=4096,
+    parser.add_argument('-r', '--rate', type=int, default=24000,
+                        help="Sampling rate in Hz (default: 24000)")
+    parser.add_argument('-k', '--chunk', type=int, default=12000,
                         help="Buffer size (default: 4096)")
     parser.add_argument('-D', '--device', type=int, default=1,
                         help="Input device index (default: 1)")
