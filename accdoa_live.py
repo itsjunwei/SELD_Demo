@@ -213,7 +213,7 @@ MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
 # Create a rolling buffer (deque) to hold the last 10 seconds (10 buffers)
-rolling_audio = deque(maxlen=10)
+rolling_audio = deque(maxlen=4)
 
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
