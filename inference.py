@@ -90,7 +90,7 @@ if __name__ == "__main__":
                                  pin_memory=True, prefetch_factor=2)
     
     model_weight_loc = "./model_weights/270225_1010_dsc_nwpu_lightaug_model.h5"
-    # model_weight_loc = './onnx_models/270225_1010_dsc_nwpu_lightaug_model.onnx'
+    model_weight_loc = './onnx_models/270225_1109_dsc_nwpu_lightaug_model.onnx'
 
     if model_weight_loc.endswith(".h5"):
         # Loading model via PyTorch weights

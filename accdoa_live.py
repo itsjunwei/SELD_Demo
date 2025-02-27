@@ -198,7 +198,7 @@ MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
 # Create a rolling buffer (deque) to hold the last X seconds (2X buffers)
-rolling_audio = deque(maxlen=2)
+rolling_audio = deque(maxlen=4)
 
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
@@ -243,7 +243,7 @@ def infer_audio(ort_sess, data_queue):
 
     # Concatenate the rolling buffers into one long array.
     # (If fewer than 10 buffers are available, it uses what is present.)
-    rolling_combined = np.concatenate(list(rolling_audio))  # shape: (num_buffers*fpb,)
+    rolling_combined = np.concatenate(list(rolling_audio)[2:])  # shape: (num_buffers*fpb,)
 
     # Compute the normalization factor from the rolling window.
     norm_factor = np.max(np.abs(rolling_combined))
