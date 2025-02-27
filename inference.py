@@ -75,7 +75,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # Get the test dataset
-    dataset = seldDatabase(feat_label_dir="./feat_label_2fps_2sec_demoroom")
+    dataset = seldDatabase(feat_label_dir="./feat_label_demorecord2fps")
     test_data = dataset.get_split("test")
     test_batch_size = test_data["test_batch_size"]
     test_dataset = seldDataset(db_data=test_data)
@@ -89,16 +89,17 @@ if __name__ == "__main__":
                                  num_workers=0, drop_last=False,
                                  pin_memory=True, prefetch_factor=2)
     
-    model_weight_loc = "./model_weights/030225_0913_btndsc_2fps_model.h5"
-    model_weight_loc = './onnx_models/040225_1558_btndsc_100epochs_2fps2sec_demoroom_model.onnx'
+    model_weight_loc = "./model_weights/270225_1010_dsc_nwpu_lightaug_model.h5"
+    # model_weight_loc = './onnx_models/270225_1010_dsc_nwpu_lightaug_model.onnx'
 
     if model_weight_loc.endswith(".h5"):
         # Loading model via PyTorch weights
         onnx_model = False
         model = ResNet(in_feat_shape=data_in,
                        out_feat_shape=data_out,
-                       use_dsc=False, 
-                       btn_dsc=True,
+                       use_dsc=True, 
+                       btn_dsc=False,
+                       lightweight=True,
                        fps=2).to(device)
         model.load_state_dict(torch.load(model_weight_loc, map_location='cpu'))
         model.eval()

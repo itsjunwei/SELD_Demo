@@ -126,7 +126,7 @@ def convert_output(predictions, n_classes=3, sed_threshold=0.5):
     return converted_output
 
 
-def convert_output_discrete(predictions, n_classes=3, sed_threshold=0.5):
+def convert_output_discrete(predictions, n_classes=3, sed_threshold=0.6):
     """
     Convert model output into SED mask and discrete DOA bins.
     
