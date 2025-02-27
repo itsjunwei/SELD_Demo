@@ -26,8 +26,7 @@ f_alias = 343 / (2 * d_max)  # Spatial aliasing frequency
 FMAX_DOA = np.min((FMAX_DOA_INIT, FS // 2, f_alias))
 
 N_BINS = N_FFT // 2 + 1
-LOWER_BIN = int(np.floor(FMIN_DOA * N_FFT / FS))
-LOWER_BIN = np.max((1, LOWER_BIN))
+LOWER_BIN = max(1, int(np.floor(FMIN_DOA * N_FFT / FS)))
 UPPER_BIN = int(np.floor(FMAX_DOA * N_FFT / FS))
 CUTOFF_BIN = int(np.floor(FMAX * N_FFT / FS))
 assert UPPER_BIN <= CUTOFF_BIN, 'Upper bin for spatial feature is higher than cutoff bin for spectrogram!'
@@ -109,23 +108,6 @@ def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
 
-def convert_output(predictions, n_classes=3, sed_threshold=0.5):
-    """Convert model output into SED mask and azimuth angles."""
-    # Flatten from (T, F, 2*n_classes) to (T*F, 2*n_classes)
-    predictions = predictions.reshape(-1, predictions.shape[-1])
-    pred_x, pred_y = predictions[:, :n_classes], predictions[:, n_classes:]
-
-    # SED mask: active if the magnitude exceeds the threshold.
-    sed = np.sqrt(pred_x ** 2 + pred_y ** 2) > sed_threshold
-
-    # Convert (x, y) to azimuth in degrees.
-    azi = np.arctan2(pred_y, pred_x) * (180.0 / np.pi)
-    azi = azi * sed  # zero-out inactive predictions
-
-    converted_output = np.concatenate((sed, azi), axis=-1)
-    return converted_output
-
-
 def convert_output_discrete(predictions, n_classes=3, sed_threshold=0.6):
     """
     Convert model output into SED mask and discrete DOA bins.
@@ -184,9 +166,12 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 print("Changing directory to:", dname)
+
+# Enable garbage collection.
 gc.enable()
 gc.collect()
-n_classes = 3
+
+n_classes = 3  # Number of sound event classes.
 
 # Tracking processing times
 tracking_feature_ex = []
@@ -198,7 +183,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/270225_1010_dsc_nwpu_lightaug_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/270225_1109_dsc_nwpu_lightaug_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Audio recording parameters.
@@ -212,7 +197,7 @@ fpb = int(RATE * RECORD_SECONDS)  # Frames per buffer
 MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
-# Create a rolling buffer (deque) to hold the last 10 seconds (10 buffers)
+# Create a rolling buffer (deque) to hold the last X seconds (2X buffers)
 rolling_audio = deque(maxlen=2)
 
 audio = pyaudio.PyAudio()
@@ -270,7 +255,7 @@ def infer_audio(ort_sess, data_queue):
     scaling_factor = 1/norm_factor
 
     if scaling_factor > 500:
-        outprint = np.zeros((6,))
+        outprint = np.zeros(6, dtype=int)
     else:
         # Reshape the normalized buffer into (channels, samples)
         audio_data = normalized_buffer.reshape(-1, CHANNELS).T
@@ -283,14 +268,13 @@ def infer_audio(ort_sess, data_queue):
     
         # Model inference
         pred_start = time.time()
-        input_tensor = torch.from_numpy(features).float().unsqueeze(0)
-        inputs = {input_names: to_numpy(input_tensor)}
-        prediction = ort_sess.run(None, inputs)
+        # Expand dims to add batch dimension.
+        input_data = features[np.newaxis, ...].astype(np.float32)
+        prediction = ort_sess.run(None, {input_names: input_data})
         tracking_model_inf.append(time.time() - pred_start)
     
         # Post-processing
         process_start = time.time()
-        # prediction = convert_output(prediction[0])
         prediction = convert_output_discrete(prediction[0])
         wanted_pred = prediction[-1]
         sed = wanted_pred[:3].astype(int)
