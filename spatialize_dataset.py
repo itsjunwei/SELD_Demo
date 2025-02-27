@@ -643,7 +643,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 if __name__ == "__main__":
     from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_dr2"
+    output_dir = "./output_data_2fps_5sec_dr4"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -699,7 +699,7 @@ if __name__ == "__main__":
                         max_polyphony=2,
                         time_resolution=0.5,  # 100 ms frames
                         possible_angles=[20, 60, 300, 340],
-                        min_event_length=1.0,
+                        min_event_length=2.0,
                         max_event_length=3.0,
                         use_500ms_blocks=True
                     )

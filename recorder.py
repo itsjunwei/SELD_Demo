@@ -1,7 +1,8 @@
 import pyaudio, wave, os, time
+import numpy as np
 
 def recorder(recording_filename = '', recording_device_index = None, recording_length = 10, recording_sample_frequency = None, buffer_length = 1,
-             playback_filename = '', playback_device_index = None, verbose = False):
+             playback_filename = '', playback_device_index = None, verbose = False, playback_volume=0.5):
     """
     Function that allows one to record and/or play back files simultaneously using pyaudio. There are three modes: Playback-only, recording-only, and playback-while-recording.
     The desired mode is determined by whether the playback file name and recording file names are given as empty strings or not.
@@ -228,6 +229,10 @@ def recorder(recording_filename = '', recording_device_index = None, recording_l
 
         def callback(in_data, frame_count, time_info, flag): # Define pyaudio callback object (this will be activated to load new frames into the buffer when it is empty).
             data = data_play.readframes(frame_count)
+            if data:
+                audio_data = np.frombuffer(data, dtype=np.int16)
+                audio_data = (audio_data * playback_volume).astype(np.int16)
+                data = audio_data.tobytes()
             return (data, pyaudio.paContinue)
 
         # Initialisation of recording parameters.
@@ -351,8 +356,8 @@ def recorder(recording_filename = '', recording_device_index = None, recording_l
 
 def main():
     # File paths for playback and recording.
-    playback_file = './demo_audio/generated_track.wav'
-    recording_file = './demo_audio/track_genrec.wav'
+    playback_file = 'generated_track2.wav'
+    recording_file = 'track_genrec.wav'
     
     # Device indices (None means the default device is used)
     recording_device_index = None
@@ -368,14 +373,13 @@ def main():
     print("Recording file: {}".format(recording_file))
     
     # Call the recorder function in playback-while-recording mode.
-    recorder(
-        recording_filename=recording_file,
-        recording_device_index=recording_device_index,
-        playback_filename=playback_file,
-        playback_device_index=playback_device_index,
-        buffer_length=buffer_length,
-        verbose=verbose
-    )
+    recorder(recording_filename=recording_file,
+             recording_device_index=recording_device_index,
+             playback_filename=playback_file,
+             playback_device_index=playback_device_index,
+             buffer_length=buffer_length,
+             verbose=verbose,
+             playback_volume=0.1)  # Adjust playback_volume (0.5 makes it half as loud)
     
     print("Playback and recording completed.")
     print("Recorded file saved as:", recording_file)
