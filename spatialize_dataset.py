@@ -643,7 +643,7 @@ def get_labels_for_file(_desc_file, _nb_label_frames, _nb_unique_classes=3):
 if __name__ == "__main__":
     from rich.progress import Progress
 
-    output_dir = "./output_data_2fps_5sec_dr4"
+    output_dir = "./output_data_2fps_5sec_dr3"
     os.makedirs(output_dir, exist_ok=True)
     rooms = os.listdir("./normalized_rirs")
     if "2fps" in output_dir:
@@ -654,56 +654,56 @@ if __name__ == "__main__":
     splits = ["train", "test"]
     rooms = ['DemoRoom_A']
 
-    for split in splits:
-        if split == "train":
-            n_tracks = 720 * 6 # 12 hours
-        elif split == "test":
-            n_tracks = 720 * 2 # 2 hours
+    # for split in splits:
+    #     if split == "train":
+    #         n_tracks = 720 * 6 # 12 hours
+    #     elif split == "test":
+    #         n_tracks = 720 * 2 # 2 hours
 
-        ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
+    #     ambience_files = [os.path.join(f"./ambience/{split}", d) for d in os.listdir(f"./ambience/{split}")]
 
-        class_audio_dict = {
-            0: f"./cleaned_concat_audio/alarm_{split}.wav",
-            1: f"./cleaned_concat_audio/impact_{split}.wav",
-            2: f"./cleaned_concat_audio/speech_{split}.wav"
-        }
+    #     class_audio_dict = {
+    #         0: f"./cleaned_concat_audio/alarm_{split}.wav",
+    #         1: f"./cleaned_concat_audio/impact_{split}.wav",
+    #         2: f"./cleaned_concat_audio/speech_{split}.wav"
+    #     }
 
-        for room in rooms:
-            srir_folder = os.path.join("./normalized_rirs", room)
+    #     for room in rooms:
+    #         srir_folder = os.path.join("./normalized_rirs", room)
 
-            track_dir = os.path.join(output_dir, split, "tracks", room)
-            os.makedirs(track_dir, exist_ok=True)
+    #         track_dir = os.path.join(output_dir, split, "tracks", room)
+    #         os.makedirs(track_dir, exist_ok=True)
 
-            csv_dir = os.path.join(output_dir, split, "metadata", room)
-            os.makedirs(csv_dir, exist_ok=True)
+    #         csv_dir = os.path.join(output_dir, split, "metadata", room)
+    #         os.makedirs(csv_dir, exist_ok=True)
             
-            with Progress() as progress:
-                task = progress.add_task("[green]Mixing tracks for {}: ".format(split), total=n_tracks)
+    #         with Progress() as progress:
+    #             task = progress.add_task("[green]Mixing tracks for {}: ".format(split), total=n_tracks)
 
-                for ith_track in range(n_tracks):
-                    ambience_file_4ch = random.choice(ambience_files)
+    #             for ith_track in range(n_tracks):
+    #                 ambience_file_4ch = random.choice(ambience_files)
 
-                    output_4ch_wav = os.path.join(track_dir, "track_{}.wav".format(ith_track+1))
-                    output_csv = os.path.join(csv_dir, "track_{}.csv".format(ith_track+1))
+    #                 output_4ch_wav = os.path.join(track_dir, "track_{}.wav".format(ith_track+1))
+    #                 output_csv = os.path.join(csv_dir, "track_{}.csv".format(ith_track+1))
 
-                    create_spatialized_mix_from_class_audio(
-                        ambience_path_4ch=ambience_file_4ch,
-                        class_audio_paths_mono=class_audio_dict,
-                        srir_folder_4ch=srir_folder,
-                        out_audio_path_4ch=output_4ch_wav,
-                        out_csv_path=output_csv,
-                        sr=24000,
-                        segment_length=5.0,     # Duration of each clip
-                        num_events=2,
-                        snr_range_db=(0, 35),
-                        max_polyphony=2,
-                        time_resolution=0.5,  # 100 ms frames
-                        possible_angles=[20, 60, 300, 340],
-                        min_event_length=2.0,
-                        max_event_length=3.0,
-                        use_500ms_blocks=True
-                    )
-                    progress.update(task, advance=1)
+    #                 create_spatialized_mix_from_class_audio(
+    #                     ambience_path_4ch=ambience_file_4ch,
+    #                     class_audio_paths_mono=class_audio_dict,
+    #                     srir_folder_4ch=srir_folder,
+    #                     out_audio_path_4ch=output_4ch_wav,
+    #                     out_csv_path=output_csv,
+    #                     sr=24000,
+    #                     segment_length=5.0,     # Duration of each clip
+    #                     num_events=2,
+    #                     snr_range_db=(0, 35),
+    #                     max_polyphony=2,
+    #                     time_resolution=0.5,  # 100 ms frames
+    #                     possible_angles=[20, 60, 300, 340],
+    #                     min_event_length=2.0,
+    #                     max_event_length=3.0,
+    #                     use_500ms_blocks=True
+    #                 )
+    #                 progress.update(task, advance=1)
 
     # Feature Extraction for the Spatialized Dataset
     feat_dir = output_dir.replace("output_data", "feat_label")

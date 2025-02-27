@@ -198,7 +198,7 @@ sess_options = ort.SessionOptions()
 sess_options.intra_op_num_threads = 1
 sess_options.inter_op_num_threads = 1
 sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-ort_sess = ort.InferenceSession('./onnx_models/250225_1201_dsc_nwpu_aug_light_model.onnx', sess_options=sess_options)
+ort_sess = ort.InferenceSession('./onnx_models/270225_1010_dsc_nwpu_lightaug_model.onnx', sess_options=sess_options)
 input_names = ort_sess.get_inputs()[0].name
 
 # Audio recording parameters.
@@ -267,6 +267,7 @@ def infer_audio(ort_sess, data_queue):
 
     # Normalize the current 1-second audio buffer using the factor computed over the 10-second window.
     normalized_buffer = rolling_combined / norm_factor
+    scaling_factor = 1/norm_factor
 
     # Reshape the normalized buffer into (channels, samples)
     audio_data = normalized_buffer.reshape(-1, CHANNELS).T
@@ -293,7 +294,7 @@ def infer_audio(ort_sess, data_queue):
     doa = wanted_pred[3:].astype(int)
     doa = sed * doa
     outprint = np.concatenate((sed, doa))
-    print(f"[{record_time}] - {outprint}")
+    print(f"[{record_time}] - {scaling_factor}")
     tracking_processing.append(time.time() - process_start)
 
 
