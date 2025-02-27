@@ -269,33 +269,37 @@ def infer_audio(ort_sess, data_queue):
     normalized_buffer = rolling_combined / norm_factor
     scaling_factor = 1/norm_factor
 
-    # Reshape the normalized buffer into (channels, samples)
-    audio_data = normalized_buffer.reshape(-1, CHANNELS).T
-
-    # Feature extraction
-    feat_start = time.time()
-    features = extract_salsalite(audio_data, normalize=True)
-    features = features[:, -81:-1, :] # Feature shape of (7, 80, 191)
-    tracking_feature_ex.append(time.time() - feat_start)
-
-    # Model inference
-    pred_start = time.time()
-    input_tensor = torch.from_numpy(features).float().unsqueeze(0)
-    inputs = {input_names: to_numpy(input_tensor)}
-    prediction = ort_sess.run(None, inputs)
-    tracking_model_inf.append(time.time() - pred_start)
-
-    # Post-processing
-    process_start = time.time()
-    # prediction = convert_output(prediction[0])
-    prediction = convert_output_discrete(prediction[0])
-    wanted_pred = prediction[-1]
-    sed = wanted_pred[:3].astype(int)
-    doa = wanted_pred[3:].astype(int)
-    doa = sed * doa
-    outprint = np.concatenate((sed, doa))
+    if scaling_factor > 500:
+        outprint = [0, 0, 0, 0, 0, 0]
+    else:
+        # Reshape the normalized buffer into (channels, samples)
+        audio_data = normalized_buffer.reshape(-1, CHANNELS).T
+    
+        # Feature extraction
+        feat_start = time.time()
+        features = extract_salsalite(audio_data, normalize=True)
+        features = features[:, -81:-1, :] # Feature shape of (7, 80, 191)
+        tracking_feature_ex.append(time.time() - feat_start)
+    
+        # Model inference
+        pred_start = time.time()
+        input_tensor = torch.from_numpy(features).float().unsqueeze(0)
+        inputs = {input_names: to_numpy(input_tensor)}
+        prediction = ort_sess.run(None, inputs)
+        tracking_model_inf.append(time.time() - pred_start)
+    
+        # Post-processing
+        process_start = time.time()
+        # prediction = convert_output(prediction[0])
+        prediction = convert_output_discrete(prediction[0])
+        wanted_pred = prediction[-1]
+        sed = wanted_pred[:3].astype(int)
+        doa = wanted_pred[3:].astype(int)
+        doa = sed * doa
+        outprint = np.concatenate((sed, doa))
+        tracking_processing.append(time.time() - process_start)
     print(f"[{record_time}] - {scaling_factor}")
-    tracking_processing.append(time.time() - process_start)
+    
 
 
 def main():
