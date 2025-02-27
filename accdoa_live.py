@@ -243,7 +243,7 @@ def infer_audio(ort_sess, data_queue):
 
     # Concatenate the rolling buffers into one long array.
     # (If fewer than 10 buffers are available, it uses what is present.)
-    rolling_combined = np.concatenate(list(rolling_audio)[2:])  # shape: (num_buffers*fpb,)
+    rolling_combined = np.concatenate(list(rolling_audio[2:]))  # shape: (num_buffers*fpb,)
 
     # Compute the normalization factor from the rolling window.
     norm_factor = np.max(np.abs(rolling_combined))
