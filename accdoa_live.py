@@ -213,7 +213,7 @@ MAX_RECORDINGS = 48
 data_queue = Queue(maxsize=MAX_RECORDINGS)
 
 # Create a rolling buffer (deque) to hold the last 10 seconds (10 buffers)
-rolling_audio = deque(maxlen=4)
+rolling_audio = deque(maxlen=2)
 
 audio = pyaudio.PyAudio()
 stream = audio.open(format=FORMAT,
@@ -270,7 +270,7 @@ def infer_audio(ort_sess, data_queue):
     scaling_factor = 1/norm_factor
 
     if scaling_factor > 500:
-        outprint = [0, 0, 0, 0, 0, 0]
+        outprint = np.zeros((6,))
     else:
         # Reshape the normalized buffer into (channels, samples)
         audio_data = normalized_buffer.reshape(-1, CHANNELS).T
