@@ -243,7 +243,7 @@ def infer_audio(ort_sess, data_queue):
 
     # Concatenate the rolling buffers into one long array.
     # (If fewer than 10 buffers are available, it uses what is present.)
-    rolling_combined = np.concatenate(list(rolling_audio[2:]))  # shape: (num_buffers*fpb,)
+    rolling_combined = np.concatenate(list(rolling_audio))  # shape: (num_buffers*fpb,)
 
     # Compute the normalization factor from the rolling window.
     norm_factor = np.max(np.abs(rolling_combined))
@@ -269,8 +269,9 @@ def infer_audio(ort_sess, data_queue):
         # Model inference
         pred_start = time.time()
         # Expand dims to add batch dimension.
-        input_data = features[np.newaxis, ...].astype(np.float32)
-        prediction = ort_sess.run(None, {input_names: input_data})
+        input_tensor = torch.from_numpy(features).float().unsqueeze(0)
+        inputs = {input_names: to_numpy(input_tensor)}
+        prediction = ort_sess.run(None, inputs)
         tracking_model_inf.append(time.time() - pred_start)
     
         # Post-processing
