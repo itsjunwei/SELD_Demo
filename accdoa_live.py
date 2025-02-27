@@ -298,7 +298,7 @@ def infer_audio(ort_sess, data_queue):
         doa = sed * doa
         outprint = np.concatenate((sed, doa))
         tracking_processing.append(time.time() - process_start)
-    print(f"[{record_time}] - {scaling_factor}")
+    print(f"[{record_time}] - {outprint}")
     
 
 
